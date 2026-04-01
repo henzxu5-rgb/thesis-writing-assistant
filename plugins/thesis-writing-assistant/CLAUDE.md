@@ -12,7 +12,7 @@
 
 无论是撰写论文还是讨论学术问题，都必须遵循以下流程：
 
-1. **先读索引**：读取 `${CLAUDE_PLUGIN_ROOT}/library/index.md`
+1. **先读索引**：读取 `library/index.md`
 2. **选择小块**：根据当前话题，从索引中的描述判断需要读取哪些小块文件
 3. **按需读取**：只读取选中的小块文件，**绝对不要一次性读取整个文献目录或所有小块**
 4. **诚实应对**：如果索引中没有相关内容，如实告知用户，不要编造
@@ -46,13 +46,13 @@
 
 ---
 
-## 文件路径
+## 文件路径（相对于项目工作目录）
 
-- 文献库索引：`${CLAUDE_PLUGIN_ROOT}/library/index.md`
-- 文献库目录：`${CLAUDE_PLUGIN_ROOT}/library/`
-- 原始文献入口：`${CLAUDE_PLUGIN_ROOT}/inbox/`
-- 论文输出目录：`${CLAUDE_PLUGIN_ROOT}/thesis/`
-- 大纲文件：`${CLAUDE_PLUGIN_ROOT}/thesis/outline.md`
+- 文献库索引：`library/index.md`
+- 文献库目录：`library/`
+- 原始文献入口：`inbox/`
+- 论文输出目录：`thesis/`
+- 大纲文件：`thesis/outline.md`
 
 ---
 

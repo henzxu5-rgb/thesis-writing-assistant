@@ -41,12 +41,12 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, WebSearch, WebFetch]
 
 ### Step 4: 检查文献库
 
-读取 `${CLAUDE_PLUGIN_ROOT}/library/index.md`，标注哪些推荐文献已在文献库中，
+读取 `library/index.md`，标注哪些推荐文献已在文献库中，
 哪些需要用户获取后通过 `/process-reference` 导入。
 
 ### Step 5: 输出
 
-将推荐列表展示给用户。如果用户希望保存，写入 `${CLAUDE_PLUGIN_ROOT}/research/` 目录。
+将推荐列表展示给用户。如果用户希望保存，写入 `research/` 目录。
 
 ## 注意事项
 

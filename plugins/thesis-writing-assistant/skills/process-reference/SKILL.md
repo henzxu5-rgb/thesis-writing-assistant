@@ -19,7 +19,7 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash]
 
 ### Step 1: 定位原始文献
 
-扫描 `${CLAUDE_PLUGIN_ROOT}/inbox/` 目录，列出所有待处理的 MD 文件。
+扫描 `inbox/` 目录，列出所有待处理的 MD 文件。
 如果用户指定了具体文件名，直接使用该文件。
 
 如果 inbox/ 为空且用户提供了文件路径，从该路径读取。
@@ -55,7 +55,7 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash]
 
 ### Step 4: 执行切分并保存
 
-1. 为该文献创建目录：`${CLAUDE_PLUGIN_ROOT}/library/<文献简称>/`
+1. 为该文献创建目录：`library/<文献简称>/`
    - 文献简称使用英文 kebab-case，如 `kant-metaphysics-morals`、`zhang-rechtstaat-2020`
    - 如果用户通过 `--name` 指定了简称，使用用户指定的
 
@@ -103,7 +103,7 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash]
 
 ### Step 6: 更新全局索引
 
-读取 `${CLAUDE_PLUGIN_ROOT}/library/index.md`，在末尾追加新文献的索引条目。
+读取 `library/index.md`，在末尾追加新文献的索引条目。
 
 格式：
 ```markdown
@@ -131,6 +131,6 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash]
 
 ## 特殊情况
 
-- **用户已按章分好多个 MD**：将它们视为同一文献的多个部分，放入同一个 `library/<name>/` 目录，chunk 编号连续
+- **用户已按章分好多个 MD**：将它们视为同一文献的多个部分，放入同一个 library/<name>/` 目录，chunk 编号连续
 - **文献缺少引用信息**：询问用户补充，或标注 `[引用信息待补充]`
 - **文献内容过短**（不足 500 字）：不切分，整体作为一个 chunk，仍然生成 meta.md 和索引条目

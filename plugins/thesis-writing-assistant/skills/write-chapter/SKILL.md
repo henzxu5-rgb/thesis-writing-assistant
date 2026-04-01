@@ -25,7 +25,7 @@ allowed-tools: [Read, Write, Edit, Glob, Grep]
 
 ### Step 2: 读取大纲
 
-读取 `${CLAUDE_PLUGIN_ROOT}/thesis/outline.md`，找到目标章节的大纲内容：
+读取 `thesis/outline.md`，找到目标章节的大纲内容：
 - 该章节的核心论点
 - 在全文论证中的位置和作用
 - 与前后章节的逻辑关系
@@ -35,7 +35,7 @@ allowed-tools: [Read, Write, Edit, Glob, Grep]
 
 ### Step 3: 从文献库按需加载参考文献（关键步骤）
 
-1. 读取 `${CLAUDE_PLUGIN_ROOT}/library/index.md`
+1. 读取 `library/index.md`
 2. 根据当前章节的主题，从索引的描述中**筛选相关的小块**
 3. **只读取**筛选出的小块文件（通常 2-5 个），不要读取无关的小块
 4. 如果某个相关文献的 meta.md 有助于理解全局，也可以读取
@@ -45,7 +45,7 @@ allowed-tools: [Read, Write, Edit, Glob, Grep]
 
 ### Step 4: 读取已有内容
 
-检查 `${CLAUDE_PLUGIN_ROOT}/thesis/` 下是否已有该章节文件。
+检查 `thesis/` 下是否已有该章节文件。
 如有，读取现有内容以保持连贯性和避免重复。
 
 也检查前一章节的结尾段落，确保衔接自然。
@@ -65,7 +65,7 @@ allowed-tools: [Read, Write, Edit, Glob, Grep]
 在章节末尾列出本章引用的参考文献，使用 GB/T 7714 格式。
 引用信息从对应的 meta.md 或 chunk 文件的来源注释中获取。
 
-**保存**：将内容写入 `${CLAUDE_PLUGIN_ROOT}/thesis/<章节文件名>.md`
+**保存**：将内容写入 `thesis/<章节文件名>.md`
 文件命名由用户决定或根据大纲自动命名（如 `chapter1.md`、`introduction.md`）。
 
 ### Step 6: 自检

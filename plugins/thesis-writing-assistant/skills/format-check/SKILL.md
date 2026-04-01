@@ -17,7 +17,7 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash]
 ### Step 1: 确定检查范围
 
 - 如果用户指定了章节文件名，只检查该文件
-- 如果用户说 `all`，检查 `${CLAUDE_PLUGIN_ROOT}/thesis/` 下所有章节文件
+- 如果用户说 `all`，检查 `thesis/` 下所有章节文件
 - 确定检查焦点：引用(citation)、结构(structure)、语言(language)、全部(all)
 
 ### Step 2: 读取格式规范
@@ -34,7 +34,7 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash]
 - 脚注/参考文献是否符合 GB/T 7714 格式
 - **交叉验证**：每个文内引用标注是否在脚注中有对应条目
 - **反向验证**：脚注中列出的文献是否在正文中被引用
-- 引用信息是否与 `library/` 中 meta.md 的信息一致
+- 引用信息是否与 library/` 中 meta.md 的信息一致
 
 #### 结构检查（structure）
 - 标题层级是否正确（一级标题、二级标题、三级标题递进）
