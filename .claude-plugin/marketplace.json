@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "thesis-writing-assistant",
+  "description": "法学毕业论文写作 AI 助手插件仓库",
+  "owner": {
+    "name": "henzxu5-rgb"
+  },
+  "plugins": [
+    {
+      "name": "thesis-writing-assistant",
+      "description": "法学毕业论文写作全流程助手：文献自动切分索引、文献搜集、大纲制定、章节撰写、格式校对",
+      "author": {
+        "name": "henzxu5-rgb"
+      },
+      "source": "./plugins/thesis-writing-assistant",
+      "category": "education"
+    }
+  ]
+}
