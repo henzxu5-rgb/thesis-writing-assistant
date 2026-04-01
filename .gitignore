@@ -1,0 +1,18 @@
+# 论文个人内容（不上传到 GitHub）
+thesis/
+research/
+inbox/processed/
+
+# 文献库内容（包含受版权保护的文献文本，不上传）
+library/*/
+
+# 保留 library/index.md 模板
+!library/index.md
+
+# macOS
+.DS_Store
+
+# 编辑器
+*.swp
+*.swo
+*~
