@@ -1,8 +1,11 @@
 ---
 name: download-references
 description: >
-  搜索并下载学术参考文献原文。当用户说「下载文献」「找原文」「下载论文」
-  「download references」「获取全文」「下载PDF」「帮我找到这篇论文」
+  搜索并下载学术参考文献原文，支持直接下载和浏览器自动下载两种模式。
+  直接下载模式：通过 Google Scholar、PhilPapers、CORE 等平台获取开放获取 PDF。
+  浏览器模式（--browser）：通过 Chrome 自动操作用户已登录的平台（Z-Library、LibGen、
+  Sci-Hub、知网、JSTOR 等），处理需要登录的资源。当用户说「下载文献」「找原文」
+  「下载论文」「download references」「获取全文」「下载PDF」「帮我找到这篇论文」
   「把文献下载下来」，或用户希望获取 collect-references 推荐的文献原文时触发。
 argument-hint: "[文献标题或引用信息] [--from scholar|cnki|zlib|auto] [--list] [--browser]"
 allowed-tools: [Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, Bash, mcp__Claude_in_Chrome__computer, mcp__Claude_in_Chrome__find, mcp__Claude_in_Chrome__form_input, mcp__Claude_in_Chrome__get_page_text, mcp__Claude_in_Chrome__navigate, mcp__Claude_in_Chrome__read_page, mcp__Claude_in_Chrome__read_network_requests, mcp__Claude_in_Chrome__tabs_context_mcp, mcp__Claude_in_Chrome__tabs_create_mcp, mcp__Claude_in_Chrome__tabs_close_mcp, mcp__Claude_in_Chrome__javascript_tool]
