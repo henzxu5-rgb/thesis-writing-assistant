@@ -38,6 +38,7 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, WebSearch, WebFetch]
 2. **推荐理由**（2-3 句，说明与论文的关联）
 3. **重要程度**：核心文献 / 重要参考 / 扩展阅读
 4. **建议用于论文哪个部分**
+5. **下载线索**：已知的 DOI、URL、或获取途径（供 `/download-references` 使用）
 
 ### Step 4: 检查文献库
 

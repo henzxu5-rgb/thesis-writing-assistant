@@ -53,6 +53,7 @@
 - 原始文献入口：`inbox/`
 - 论文输出目录：`thesis/`
 - 大纲文件：`thesis/outline.md`
+- 原始文献下载：`sources/`（AI 不自动读取此目录内容，用户手动转换后放入 inbox/）
 
 ---
 
