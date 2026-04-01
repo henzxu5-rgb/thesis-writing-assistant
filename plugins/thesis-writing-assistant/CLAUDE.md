@@ -1,7 +1,7 @@
 # 毕业论文写作助手 — 行为规则
 
 ## 论文基本信息
-- 题目：康德法治国家理念与现代法治国家
+- 题目：康德法权法则的规范性根据问题研究
 - 学科：法学
 - 语言：中文
 - 引用格式：GB/T 7714
@@ -53,7 +53,8 @@
 - 原始文献入口：`inbox/`
 - 论文输出目录：`thesis/`
 - 大纲文件：`thesis/outline.md`
-- 原始文献下载：`sources/`（AI 不自动读取此目录内容，用户手动转换后放入 inbox/）
+- 原始文献下载：`sources/`（用户将 PDF 转换为 Markdown 后放入 inbox/ 进行处理）
+- 学术 API 参考：`${CLAUDE_PLUGIN_ROOT}/references/api-endpoints.md`
 
 ---
 
