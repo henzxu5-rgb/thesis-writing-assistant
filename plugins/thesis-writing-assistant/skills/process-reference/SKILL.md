@@ -39,40 +39,40 @@ argument-hint: "[文献文件名或路径] [--name 文献简称]"
 
 ### Step 2.5: 层级修复与噪音清洗（仅平铺型文件）
 
-检查 `tools/fix-mineru.py` 是否存在：
-- 若存在：直接运行 `python3 tools/fix-mineru.py <原文件路径> library/<name>/source-fixed.md`
-- 若不存在：生成该脚本并保存到 `tools/fix-mineru.py`，再运行
+直接运行插件内置脚本：
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/tools/fix-mineru.py <原文件路径> library/<name>/source-fixed.md --report
+```
 
 脚本完成以下工作，结果保存为 `library/<name>/source-fixed.md`：
 
 **噪音清洗**：
-1. 删除无效图片行（`![image](https://cdn-mineru...)`、`![image](http...)`）
-2. LaTeX 脚注编号还原：`$①$` → `①`，`$[N]$` → `[N]`，`$\d+$` → 纯数字
-3. 删除孤立页码行（仅含数字和空格的单独行）
-4. 文件开头重复出现的书名行只保留一次
+1. 删除 CDN/HTTP 图片行（`![image](https://...)`）
+2. 删除孤立页码行（仅含数字和空格的单独行）
+3. LaTeX 还原：`$①$`→`①`、`$[N]$`→`[N]`、`$N\sim M$`→`N–M`、排版规格行删除、数学表达式去 `$`
+4. 重复出现 2 次以上的 `#` 级标题只保留第一次
 
 **标题层级推断**（将平铺的 `#` 重写为多级）：
 
 中文学术著作规则：
 | 标题内容模式 | 推断层级 |
 |------------|---------|
-| 第[一二三四五六七八九十百]+部、第[一二…]+卷、书名行（仅含书名） | `#` |
-| 第[一二…]+章、×××导论、×××要素论、×××方法论、×××要素学、×××方法学 | `##` |
-| 第[一二…]+节、第\d+节、§\d+、一、二、三、（带顿号序号标题） | `###` |
-| 第[一二…]+款、决疑论、附释、附录（小节级） | `####` |
+| 第[一二三四五六七八九十百]+部 | `#` |
+| 第[一二…]+章/篇/部分/卷（章级）、×××导论/要素论/方法论、前言/结论/目录/附录等通用节名 | `##` |
+| 第[一二…]+节、§\d+、一、二、三、（带顿号序号）、N. 标题 | `###` |
+| 第[一二…]+款、决疑论、附释（短）、附录（小节级）、拉丁括号标题 | `####` |
 
 英文/德文学术著作规则：
 | 标题内容模式 | 推断层级 |
 |------------|---------|
-| `Part [IVX]+`、`Book [IVX]+`、书名行 | `#` |
-| `Chapter \d+`、`Introduction`、`Conclusion`、`Preface`、`Foreword` | `##` |
-| `Section \d+`、`§\d+`、罗马数字独立行（`I.`、`II.` 等） | `###` |
-| `\d+\.\d+` 形式、`Remark`、`Corollary`、`Note`、`Appendix` | `####` |
+| `Part [IVX]+`、`Book [IVX\d]+` | `#` |
+| `Chapter \d+`、`Introduction`、`Conclusion`、`Preface`、`Foreword` 等 | `##` |
+| `Section \d+`、`§\d+`、罗马数字独立行（`I.`、`II.` 等）、德文 `Abschnitt` | `###` |
+| `\d+\.\d+`、`Remark`、`Corollary`、`Note`、`Appendix X`、德文 `Anmerkung` | `####` |
 
-无法匹配任何规则的 `#` 标题保持原样。
+无法匹配任何规则的 `#` 标题保持原样，`--report` 会列出所有未匹配标题。
 
-修复完成后告知用户 source-fixed.md 已生成，可打开检查层级是否正确；
-如有误判，用户可手动调整后告知继续。
+修复完成后告知用户 source-fixed.md 已生成，可打开检查；如有误判，用户可手动调整后告知继续。
 
 ### Step 3: 确定切分方案
 
@@ -91,9 +91,10 @@ argument-hint: "[文献文件名或路径] [--name 文献简称]"
 
 ### Step 3.5: 生成切分草案并审查
 
-检查 `tools/plan-chunks.py` 是否存在：
-- 若存在：直接运行 `python3 tools/plan-chunks.py library/<name>/source-fixed.md`（或原文件）
-- 若不存在：生成该脚本并保存到 `tools/plan-chunks.py`，再运行
+直接运行插件内置脚本：
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/tools/plan-chunks.py library/<name>/source-fixed.md
+```
 
 脚本输出 `library/<name>/draft-chunks.md`，格式如下：
 
@@ -138,9 +139,9 @@ chunk-05 [行475-474, 380字] ↑ 不足400字，建议与相邻块合并
 共 N 个小块，详见 library/<name>/index.md
 ```
 
-3. 运行脚本自动写出所有 chunk 文件：
+3. 运行插件内置脚本自动写出所有 chunk 文件：
    ```
-   python3 tools/write-chunks.py \
+   python3 ${CLAUDE_PLUGIN_ROOT}/tools/write-chunks.py \
      library/<name>/source-fixed.md \
      library/<name>/draft-chunks.md \
      library/<name>/ \
