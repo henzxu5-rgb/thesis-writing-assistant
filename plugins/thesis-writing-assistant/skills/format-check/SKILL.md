@@ -79,6 +79,6 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash]
 
 ## 注意事项
 
-- 检查时读取 library/index.md 以验证引用信息，但不需要读取所有小块
-- 只在需要核实具体引用内容时读取对应的 meta.md
+- 检查时读取 `library/index.md` 定位相关书目，再读 `library/<书目目录>/index.md` 核查 chunk 描述以验证引用信息
+- 只在需要核实原文时才读具体 chunk 文件
 - 报告应具体到行号和具体问题，便于用户定位修改

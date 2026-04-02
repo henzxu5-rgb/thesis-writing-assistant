@@ -18,7 +18,7 @@ allowed-tools: [Read, Write, Edit, Glob, Grep]
 ### Step 1: 了解现状
 
 - 检查 `thesis/outline.md` 是否已存在
-- 读取 `library/index.md` 了解已有哪些文献资源
+- 读取 `library/index.md` 了解已有哪些文献资源；如需了解具体章节内容，再读该书的 `library/<书目目录>/index.md`
 - 如果是调整（adjust），先读取现有大纲
 
 ### Step 2: 与用户对话确定方向

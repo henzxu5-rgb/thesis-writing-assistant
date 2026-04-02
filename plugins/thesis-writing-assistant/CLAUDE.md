@@ -48,7 +48,8 @@
 
 ## 文件路径（相对于项目工作目录）
 
-- 文献库索引：`library/index.md`
+- 文献库全局索引：`library/index.md`（书级概述）
+- 文献库局部索引：`library/<书目目录>/index.md`（chunk 级描述在此）
 - 文献库目录：`library/`
 - 原始文献入口：`inbox/`
 - 论文输出目录：`thesis/`
