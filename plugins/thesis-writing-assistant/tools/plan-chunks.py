@@ -299,7 +299,7 @@ def plan_chunks(
         if para_breaks:
             n = max(chars // target_max, 1)
             step = max(len(para_breaks) // n, 1)
-            candidates = para_breaks[step::step][:3]
+            candidates = para_breaks[step::step][:max(n, 3)]
             warns.append(f'候选拆分点：行{"、".join(str(x) for x in candidates)}（段落空行）')
         return {
             'start': start, 'end': end,

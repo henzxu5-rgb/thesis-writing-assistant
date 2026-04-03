@@ -14,7 +14,7 @@ import argparse
 from pathlib import Path
 
 CHUNK_LINE_RE = re.compile(
-    r'^chunk-(\d+)\s+\[行(\d+)-(\d+),\s*\d+[字词]\]\s+#\s*(.+?)(?:\s*\|.*)?$'
+    r'^chunk-(\d+)\s+\[行(\d+)-(\d+),\s*~?\d+[字词]\]\s+#\s*(.+?)(?:\s*\|.*)?$'
 )
 
 _FOOTNOTE_MARKER_RE = re.compile(r'^<!--\s*footnote\s+(\d+)\s*-->')
