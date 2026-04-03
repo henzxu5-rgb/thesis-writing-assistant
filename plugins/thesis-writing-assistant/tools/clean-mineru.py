@@ -70,8 +70,8 @@ _SUPERSCRIPT_RE = re.compile(r'\^\s*\{\s*([^{}]*(?:\{[^{}]*\}[^{}]*)*)\s*\}')
 # 下标表示法：_ { ... }
 _SUBSCRIPT_RE = re.compile(r'_\s*\{\s*([^{}]*(?:\{[^{}]*\}[^{}]*)*)\s*\}')
 
-# 间距数字：连续的 "单字符 空格" 模式（如 "6 5 3" → "653", "6 8" → "68"）
-_SPACED_DIGITS_RE = re.compile(r'(?<!\w)(\d(?:\s\d){1,})(?!\w)')
+# 间距数字：连续的 "数字(组) 空格" 模式（如 "6 5 3"→"653", "28 5"→"285", "6 8"→"68"）
+_SPACED_DIGITS_RE = re.compile(r'(?<!\w)(\d+(?:\s+\d+){1,})(?!\w)')
 
 # 残余空花括号
 _EMPTY_BRACES_RE = re.compile(r'\{\s*\}')
@@ -79,8 +79,15 @@ _EMPTY_BRACES_RE = re.compile(r'\{\s*\}')
 # 单字符/短内容花括号包裹：{ I }, { B }, { o }, { I7 } 等
 _SINGLETON_BRACES_RE = re.compile(r'\{\s*([A-Za-z0-9]{1,4})\s*\}')
 
-# LaTeX 空格命令：\: \; \, \! \  \~ 等 → 普通空格
-_TEX_SPACE_RE = re.compile(r'\\[,:;!]\s*')
+# LaTeX 空格命令 → 普通空格
+# 短命令：\, \: \; \!  长命令：\thinspace \enspace \quad \qquad \hfill
+# 带参数：\hspace{...} \hskip...
+_TEX_SPACE_RE = re.compile(
+    r'\\(?:thinspace|enspace|quad|qquad|hfill|medspace|thickspace|negthinspace)\s*'
+    r'|\\hspace\s*\{[^{}]*\}'
+    r'|\\hskip\s*[^a-zA-Z{}\s]*\s*'
+    r'|\\[,:;!]\s*'
+)
 
 # 残余反斜杠空格（\  或 \ ）
 _BACKSLASH_SPACE_RE = re.compile(r'\\\s+')
@@ -104,9 +111,9 @@ def _strip_tex_deep(s: str) -> str:
         s = _BRACE_PUNCT_RE.sub(r'\1', s)
         s = _SUPERSCRIPT_RE.sub(r'\1', s)
         s = _SUBSCRIPT_RE.sub(r'\1', s)
+        s = _TEX_SPACE_RE.sub(' ', s)          # before singleton braces (protects \hspace{...})
         s = _SINGLETON_BRACES_RE.sub(r'\1', s)
         s = _EMPTY_BRACES_RE.sub('', s)
-        s = _TEX_SPACE_RE.sub(' ', s)
         s = _BACKSLASH_SPACE_RE.sub(' ', s)
         # ~ is LaTeX non-breaking space
         s = s.replace('~', ' ')
