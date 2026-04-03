@@ -149,6 +149,58 @@ def find_paragraph_breaks(lines: list[str], start_line: int, end_line: int) -> l
 # 切分规划
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _split_at_level(group: list[dict], level: int) -> list[list[dict]]:
+    """将 section 列表按指定标题层级切分为子组。"""
+    sub_groups: list[list[dict]] = []
+    current: list[dict] = []
+    for sec in group:
+        if sec['level'] <= level and current:
+            sub_groups.append(current)
+            current = [sec]
+        else:
+            current.append(sec)
+    if current:
+        sub_groups.append(current)
+    return sub_groups
+
+
+def _merge_sub_groups(
+    sub_groups: list[list[dict]],
+    target_min: int,
+    target_max: int,
+    max_heading_level: int,
+) -> list[list[dict]]:
+    """将子组合并到目标大小范围内。"""
+    merged: list[list[dict]] = []
+    cur: list[dict] = []
+    for sg in sub_groups:
+        sc = sum(s['char_count'] for s in sg)
+        cs = sum(s['char_count'] for s in cur)
+        if cur and cs + sc > target_max and cs >= target_min:
+            merged.append(cur)
+            cur = list(sg)
+        else:
+            cur.extend(sg)
+    if cur:
+        merged.append(cur)
+    return merged
+
+
+def _group_range(g: list[dict]) -> tuple[int, int]:
+    return g[0]['start'], g[-1]['end']
+
+
+def _group_chars(g: list[dict]) -> int:
+    return sum(s['char_count'] for s in g)
+
+
+def _group_heading(g: list[dict], max_level: int = 2) -> str:
+    for s in g:
+        if s['level'] <= max_level:
+            return s['heading']
+    return g[0]['heading']
+
+
 def plan_chunks(
     sections:    list[dict],
     lines:       list[str],
@@ -166,46 +218,107 @@ def plan_chunks(
     toc_chunks: list[dict] = []
 
     # 以 ## 为基本单元分组
-    groups: list[list[dict]] = []
-    current_group: list[dict] = []
-    for sec in sections:
-        if sec['level'] <= 2 and current_group:
-            groups.append(current_group)
-            current_group = [sec]
-        else:
-            current_group.append(sec)
-    if current_group:
-        groups.append(current_group)
-
-    def group_range(g):
-        return g[0]['start'], g[-1]['end']
-
-    def group_chars(g):
-        return sum(s['char_count'] for s in g)
-
-    def group_heading(g):
-        for s in g:
-            if s['level'] <= 2:
-                return s['heading']
-        return g[0]['heading']
+    groups = _split_at_level(sections, level=2)
 
     def group_main_section(g):
         """返回组内层级最低（最高级）的节，用于 ToC 检测。"""
         return min(g, key=lambda s: s['level'])
 
+    def try_split_group(g: list[dict]) -> list[dict]:
+        """
+        尝试按 ###→####→##### 递进切分超大组，返回 chunk 列表。
+        """
+        result_chunks = []
+        total_chars = _group_chars(g)
+
+        # 依次尝试按 level 3, 4, 5 切分
+        for split_level in (3, 4, 5):
+            sub_groups = _split_at_level(g, split_level)
+            if len(sub_groups) <= 1:
+                continue  # 该层级无法切分，尝试下一层
+
+            merged = _merge_sub_groups(sub_groups, target_min, target_max, split_level)
+
+            # 检查合并后是否所有子组都在范围内
+            all_ok = True
+            for ms in merged:
+                ms_chars = _group_chars(ms)
+                if ms_chars > target_max:
+                    all_ok = False
+                    break
+
+            if all_ok:
+                # 全部在范围内，直接输出
+                for ms in merged:
+                    ms_chars = _group_chars(ms)
+                    ms_start, ms_end = _group_range(ms)
+                    ms_heading = _group_heading(ms, split_level)
+                    warns = []
+                    if ms_chars < target_min:
+                        warns.append(f'↑ 不足{target_min}字，建议与相邻块合并')
+                    result_chunks.append({
+                        'start': ms_start, 'end': ms_end,
+                        'heading': ms_heading, 'char_count': ms_chars,
+                        'warnings': warns,
+                    })
+                return result_chunks
+
+            # 部分子组仍超出——对超出的递归尝试更深层级
+            for ms in merged:
+                ms_chars = _group_chars(ms)
+                ms_start, ms_end = _group_range(ms)
+                ms_heading = _group_heading(ms, split_level)
+                if ms_chars <= target_max:
+                    warns = []
+                    if ms_chars < target_min:
+                        warns.append(f'↑ 不足{target_min}字，建议与相邻块合并')
+                    result_chunks.append({
+                        'start': ms_start, 'end': ms_end,
+                        'heading': ms_heading, 'char_count': ms_chars,
+                        'warnings': warns,
+                    })
+                else:
+                    # 递归尝试更深层级
+                    deeper = try_split_group(ms)
+                    if deeper:
+                        result_chunks.extend(deeper)
+                    else:
+                        # 无法再切分，作为一个大块输出
+                        result_chunks.append(_make_oversized_chunk(
+                            ms, ms_start, ms_end, ms_chars, ms_heading, lines
+                        ))
+            return result_chunks
+
+        # 所有层级都无法切分
+        return []
+
+    def _make_oversized_chunk(g, start, end, chars, heading, lines):
+        warns = [f'⚠️ 超过{force_split if chars > force_split else target_max}字']
+        para_breaks = find_paragraph_breaks(lines, start, end)
+        if para_breaks:
+            n = max(chars // target_max, 1)
+            step = max(len(para_breaks) // n, 1)
+            candidates = para_breaks[step::step][:3]
+            warns.append(f'候选拆分点：行{"、".join(str(x) for x in candidates)}（段落空行）')
+        return {
+            'start': start, 'end': end,
+            'heading': heading, 'char_count': chars,
+            'warnings': warns,
+        }
+
     i = 0
     while i < len(groups):
         g           = groups[i]
         main_sec    = group_main_section(g)
-        total_chars = group_chars(g)
-        start_line, end_line = group_range(g)
+        total_chars = _group_chars(g)
+        start_line, end_line = _group_range(g)
 
         # ── ToC 检测：单独输出，不参与正常编号 ──────────────────────────────
         if is_toc_section(main_sec):
             toc_chunks.append({
                 'start':      start_line,
                 'end':        end_line,
-                'heading':    group_heading(g),
+                'heading':    _group_heading(g),
                 'char_count': total_chars,
                 'warnings':   ['[ToC节，仅供人工参考，不纳入检索索引]'],
             })
@@ -214,14 +327,12 @@ def plan_chunks(
 
         # ── 过小：与下一组合并 ────────────────────────────────────────────
         if total_chars < target_min and i + 1 < len(groups):
-            # 不合并进 ToC 组
             next_g = groups[i + 1]
             next_main = group_main_section(next_g)
             if not is_toc_section(next_main):
                 groups[i + 1] = g + next_g
                 i += 1
                 continue
-            # 若下一组是 ToC，不合并，直接输出当前小组（带警告）
 
         # ── 在目标范围内：直接作为一个 chunk ─────────────────────────────
         if total_chars <= target_max:
@@ -231,77 +342,23 @@ def plan_chunks(
             chunks.append({
                 'start':      start_line,
                 'end':        end_line,
-                'heading':    group_heading(g),
+                'heading':    _group_heading(g),
                 'char_count': total_chars,
                 'warnings':   warns,
             })
             i += 1
             continue
 
-        # ── 超出 target_max：尝试按 ### 边界切分 ─────────────────────────
-        sub_groups: list[list[dict]] = []
-        sub_current: list[dict] = []
-        for sec in g:
-            if sec['level'] <= 3 and sub_current:
-                sub_groups.append(sub_current)
-                sub_current = [sec]
-            else:
-                sub_current.append(sec)
-        if sub_current:
-            sub_groups.append(sub_current)
-
-        if len(sub_groups) <= 1:
-            # 无法按 ### 切分，找段落切分点
-            warns = [f'⚠️ 超过{force_split if total_chars > force_split else target_max}字']
-            para_breaks = find_paragraph_breaks(lines, start_line, end_line)
-            if para_breaks:
-                n         = max(total_chars // target_max, 1)
-                step      = max(len(para_breaks) // n, 1)
-                candidates = para_breaks[step::step][:3]
-                warns.append(f'候选拆分点：行{"、".join(str(x) for x in candidates)}（段落空行）')
-            chunks.append({
-                'start':      start_line,
-                'end':        end_line,
-                'heading':    group_heading(g),
-                'char_count': total_chars,
-                'warnings':   warns,
-            })
-            i += 1
-            continue
-
-        # 按 ### 子组合并到合适大小
-        merged_subs: list[list[dict]] = []
-        cur_sub: list[dict] = []
-        for sg in sub_groups:
-            sc = sum(s['char_count'] for s in sg)
-            cs = sum(s['char_count'] for s in cur_sub)
-            if cur_sub and cs + sc > target_max and cs >= target_min:
-                merged_subs.append(cur_sub)
-                cur_sub = list(sg)
-            else:
-                cur_sub.extend(sg)
-        if cur_sub:
-            merged_subs.append(cur_sub)
-
-        for ms in merged_subs:
-            ms_start  = ms[0]['start']
-            ms_end    = ms[-1]['end']
-            ms_chars  = sum(s['char_count'] for s in ms)
-            ms_heading = next((s['heading'] for s in ms if s['level'] <= 3), ms[0]['heading'])
-            warns = []
-            if ms_chars > force_split:
-                warns.append(f'⚠️ 超过{force_split}字')
-            elif ms_chars > target_max:
-                warns.append(f'⚠️ 超过{target_max}字')
-            elif ms_chars < target_min:
-                warns.append(f'↑ 不足{target_min}字，建议与相邻块合并')
-            chunks.append({
-                'start':      ms_start,
-                'end':        ms_end,
-                'heading':    ms_heading,
-                'char_count': ms_chars,
-                'warnings':   warns,
-            })
+        # ── 超出 target_max：递进式切分（###→####→#####→段落） ──────────
+        split_result = try_split_group(g)
+        if split_result:
+            chunks.extend(split_result)
+        else:
+            # 完全无法切分，输出为大块
+            chunks.append(_make_oversized_chunk(
+                g, start_line, end_line, total_chars,
+                _group_heading(g), lines
+            ))
         i += 1
 
     return chunks, toc_chunks
