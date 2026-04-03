@@ -224,15 +224,16 @@ def plan_chunks(
         """返回组内层级最低（最高级）的节，用于 ToC 检测。"""
         return min(g, key=lambda s: s['level'])
 
-    def try_split_group(g: list[dict]) -> list[dict]:
+    def try_split_group(g: list[dict], min_level: int = 3) -> list[dict]:
         """
         尝试按 ###→####→##### 递进切分超大组，返回 chunk 列表。
+        min_level 指定从哪个层级开始尝试（避免重复尝试已失败的层级）。
         """
         result_chunks = []
         total_chars = _group_chars(g)
 
-        # 依次尝试按 level 3, 4, 5 切分
-        for split_level in (3, 4, 5):
+        # 依次尝试按 level min_level..5 切分
+        for split_level in range(min_level, 6):
             sub_groups = _split_at_level(g, split_level)
             if len(sub_groups) <= 1:
                 continue  # 该层级无法切分，尝试下一层
@@ -278,8 +279,8 @@ def plan_chunks(
                         'warnings': warns,
                     })
                 else:
-                    # 递归尝试更深层级
-                    deeper = try_split_group(ms)
+                    # 递归尝试更深层级（从下一级开始）
+                    deeper = try_split_group(ms, min_level=split_level + 1)
                     if deeper:
                         result_chunks.extend(deeper)
                     else:
