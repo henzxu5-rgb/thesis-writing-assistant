@@ -202,8 +202,8 @@ def clean_noise(lines: list[str]) -> list[str]:
         if re.match(r'^!\[image\]\(https?://', stripped):
             continue
 
-        # 2. 孤立页码行（仅数字和空格）
-        if re.match(r'^\s*\d+\s*$', stripped) and stripped.strip():
+        # 2. 孤立页码行（仅数字和空格，或 MinerU [数字] 格式）
+        if re.match(r'^\s*\d+\s*$', stripped) or re.match(r'^\s*\[\d+\]\s*$', stripped):
             continue
 
         # 3. 排版规格整行删除
@@ -239,6 +239,9 @@ _SENTENCE_END_RE = re.compile(r'[.?!;:"\'\)\]）」』。？！；：）\u201d]\
 # 续行开头：小写字母、逗号、分号、左括号、开引号（表示句子未结束）
 _CONTINUATION_RE = re.compile(r"^[a-z,;(\u2018\u201c\"']")
 
+# MinerU 页码标记：[数字] 格式（如 [417]、[431]）
+_PAGE_MARKER_RE = re.compile(r'^\[\d+\]\s*$')
+
 
 def merge_page_breaks(lines: list[str]) -> list[str]:
     """
@@ -256,6 +259,25 @@ def merge_page_breaks(lines: list[str]) -> list[str]:
 
     while i < len(lines):
         line_a = lines[i]
+
+        # 五行合并：line_A + 空行 + [NNN]页码 + 空行 + line_B（跨页断词）
+        if (i + 4 < len(lines)
+                and lines[i].strip()
+                and not lines[i + 1].strip()
+                and _PAGE_MARKER_RE.match(lines[i + 2].strip())
+                and not lines[i + 3].strip()
+                and lines[i + 4].strip()
+                and not HEADING_RE.match(lines[i])
+                and not HEADING_RE.match(lines[i + 4])
+                and not lines[i].strip().startswith('>')
+                and not lines[i].strip().startswith('<!--')
+                and not _SENTENCE_END_RE.search(lines[i])
+        ):
+            merged = lines[i].rstrip() + lines[i + 4].lstrip()
+            result.append(merged)
+            i += 5
+            merge_count += 1
+            continue
 
         # 检查是否符合三行合并条件
         if (i + 2 < len(lines)
@@ -306,13 +328,13 @@ def main():
     raw_lines = src.read_text(encoding='utf-8').splitlines(keepends=False)
     print(f'读取 {len(raw_lines)} 行')
 
-    cleaned = clean_noise(raw_lines)
-    print(f'清洗后 {len(cleaned)} 行（删除 {len(raw_lines) - len(cleaned)} 行噪音）')
+    merged = merge_page_breaks(raw_lines)
+    print(f'合并后 {len(merged)} 行（合并 {len(raw_lines) - len(merged)} 处）')
 
-    merged = merge_page_breaks(cleaned)
-    print(f'合并后 {len(merged)} 行')
+    cleaned = clean_noise(merged)
+    print(f'清洗后 {len(cleaned)} 行（删除 {len(merged) - len(cleaned)} 行噪音）')
 
-    dst.write_text('\n'.join(merged) + '\n', encoding='utf-8')
+    dst.write_text('\n'.join(cleaned) + '\n', encoding='utf-8')
     print(f'输出到 {dst}')
 
 
