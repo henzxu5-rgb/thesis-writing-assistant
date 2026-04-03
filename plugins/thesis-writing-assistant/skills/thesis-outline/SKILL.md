@@ -83,9 +83,55 @@ allowed-tools: [Read, Write, Edit, Glob, Grep]
 - <缺少某方面的文献，建议补充>
 ```
 
+### Step 6: 生成写作计划（chunk 映射）
+
+大纲确定后，**立即**生成 `thesis/writing-plan.md`，将每章每节映射到具体的 chunk 文件。此步骤的目的是让后续 `write-chapter` 跳过两级索引遍历，直接读取所需 chunk，大幅减少 token 消耗。
+
+**流程**：
+1. 读取 `library/index.md`，逐个读取每本书的 `library/<name>/index.md`
+2. 对照大纲中每章每节的核心论点和主要文献，从 chunk 描述和子话题中筛选相关 chunk
+3. 生成映射文件
+
+**文件格式**：
+```markdown
+# 写作计划：章节—文献块映射
+
+> 本文件由 /thesis-outline 自动生成，供 /write-chapter 直接使用。
+> 修改大纲后请重新生成（/thesis-outline adjust）。
+
+---
+
+## 第一章 <章标题>
+
+### 1.1 <节标题>
+核心论点：...
+所需文献块：
+- `guyer-2005/chunk-42.md` — <该chunk与本节的关联说明>
+- `ripstein-2009/chunk-05.md` — <关联说明>
+
+### 1.2 <节标题>
+核心论点：...
+所需文献块：
+- `kant-metaphysics/chunk-12.md` — <关联说明>
+- `kant-metaphysics/chunk-13.md` — <关联说明>
+- `guyer-2005/chunk-44.md` — <关联说明>
+
+<!-- 后续章节... -->
+
+---
+
+## 未覆盖的章节
+- <某节缺少足够的文献块支撑，建议补充>
+```
+
+**注意**：
+- 每个 chunk 条目附一句话说明该 chunk 与该节的关联，帮助 write-chapter 判断是否确实需要读取
+- 如果某节的核心论点在文献库中找不到对应 chunk，在"未覆盖的章节"中列出
+- 同一个 chunk 可以被多个章节引用
+
 ## 注意事项
 
 - 不强制预设任何固定的章节结构
 - 章节数量和划分完全取决于研究问题和用户意愿
-- 大纲可以随时调整，用 `adjust` 模式修改
+- 大纲可以随时调整，用 `adjust` 模式修改；调整大纲后会自动重新生成 writing-plan.md
 - 如果用户的研究还在早期阶段，可以先提出一个粗略的框架，后续细化

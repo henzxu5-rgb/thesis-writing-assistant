@@ -57,7 +57,8 @@ _MATH_INLINE_RE = re.compile(r'\$([^$\n]{1,120})\$')
 
 # TeX 命令壳：\mathrm{X}, \textrm{X}, \mathbf{X}, \text{X}, \textbf{X}, \textit{X}
 _TEX_CMD_RE = re.compile(
-    r'\\(?:mathrm|textrm|mathbf|textbf|textit|text|rm|bf|it)\s*'
+    r'\\(?:mathrm|textrm|mathbf|textbf|textit|text|rm|bf|it'
+    r'|operatorname|boldsymbol)\s*'
     r'\{\s*([^{}]*(?:\{[^{}]*\}[^{}]*)*)\s*\}'
 )
 
@@ -104,6 +105,17 @@ def _is_typeset_noise(content: str) -> bool:
 
 def _strip_tex_deep(s: str) -> str:
     """递归剥离 $...$ 内部的 TeX 命令壳、花括号标点、上下标等。"""
+    # \left( → (, \left[ → [, \right) → ), \right] → ], bare \left/\right → ''
+    s = re.sub(r'\\left\s*([(\[|])', r'\1', s)
+    s = re.sub(r'\\right\s*([)\]|])', r'\1', s)
+    s = re.sub(r'\\(?:left|right)\s*[.]?', '', s)
+    # 常见符号命令替换
+    _SYMBOL_MAP = {
+        r'\S': '§', r'\circ': '°', r'\AA': 'Å', r'\yen': '¥',
+        r'\dag': '†', r'\ddag': '‡', r'\P': '¶', r'\copyright': '©',
+    }
+    for cmd, repl in _SYMBOL_MAP.items():
+        s = s.replace(cmd, repl)
     prev = None
     while prev != s:
         prev = s
@@ -224,8 +236,8 @@ def clean_noise(lines: list[str]) -> list[str]:
 # 句末标点：段落正常结束的标志
 _SENTENCE_END_RE = re.compile(r'[.?!;:"\'\)\]）」』。？！；：）\u201d]\s*$')
 
-# 续行开头：小写字母、逗号、分号（表示句子未结束）
-_CONTINUATION_RE = re.compile(r'^[a-z,;]')
+# 续行开头：小写字母、逗号、分号、左括号、开引号（表示句子未结束）
+_CONTINUATION_RE = re.compile(r"^[a-z,;(\u2018\u201c\"']")
 
 
 def merge_page_breaks(lines: list[str]) -> list[str]:

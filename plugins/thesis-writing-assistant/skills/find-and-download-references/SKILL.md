@@ -203,7 +203,7 @@ ls -la "sources/{文件名}.pdf"
 **后续步骤提醒：**
 > 下载的文件存放在 `sources/` 目录。要让 AI 能在写作时引用这些文献：
 > 1. 将 PDF 转换为 Markdown 格式
-> 2. 放入 `inbox/` 目录
+> 2. 放入 `inbox/pending/` 目录
 > 3. 运行 `/process-reference` 进行切分和索引
 
 如果用户希望保存推荐列表，写入 `research/` 目录。

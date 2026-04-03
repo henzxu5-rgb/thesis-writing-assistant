@@ -32,7 +32,9 @@
 你的论文目录/
 ├── library/
 │   └── index.md          # 自动生成，文献索引
-├── inbox/                # 将原始文献 MD 放在这里
+├── inbox/                # 文献入口
+│   ├── pending/          # 将原始文献 MD 放在这里
+│   └── processed/        # 处理完成后自动移入
 ├── thesis/               # 论文输出目录
 └── research/             # 个人研究笔记（可选）
 ```

@@ -3,7 +3,7 @@ name: process-reference
 description: >
   处理和切分参考文献。当用户说「处理文献」「切分文献」「导入文献」
   「process reference」「处理这本书」「处理这篇论文」「把这个放入文献库」
-  「index this」，或用户提到已将文件放入 inbox/ 目录时触发。
+  「index this」，或用户提到已将文件放入 inbox/pending/ 目录时触发。
   当用户上传或提供一篇完整的学术文献（书籍、论文）并希望 AI 能够
   理解和记忆其内容时，也应触发此技能。
 argument-hint: "[文献文件名或路径] [--name 文献简称]"
@@ -18,10 +18,10 @@ argument-hint: "[文献文件名或路径] [--name 文献简称]"
 
 ### Step 1: 定位原始文献
 
-扫描 `inbox/` 目录，列出所有待处理的 MD 文件。
+扫描 `inbox/pending/` 目录，列出所有待处理的 MD 文件。
 如果用户指定了具体文件名，直接使用该文件。
 
-如果 `inbox/` 为空，检查 `library/` 根目录是否有待处理的 MD 文件（用户有时会直接放在 library/ 而非 inbox/），如果发现则正常处理，并提示用户下次放入 inbox/。
+如果 `inbox/pending/` 为空，检查 `library/` 根目录是否有待处理的 MD 文件（用户有时会直接放在 library/ 而非 inbox/pending/），如果发现则正常处理，并提示用户下次放入 inbox/pending/。
 
 如果以上均为空且用户提供了文件路径，从该路径读取。
 
@@ -68,7 +68,7 @@ python3 library/<name>/fix-headings.py library/<name>/source-cleaned.md library/
 
 **若不存在**，AI 按以下抽样阅读协议分析文献结构，然后编写 `fix-headings.py`：
 
-> **PDF 源文件定位**：优先检查 `inbox/` 或 `library/<name>/` 目录下是否存在同名 PDF 文件。
+> **PDF 源文件定位**：优先检查 `inbox/pending/` 或 `library/<name>/` 目录下是否存在同名 PDF 文件。
 > 若不存在，询问用户提供 PDF 路径。若用户无法提供 PDF，退回纯 MD 抽样模式（仅执行下方 A 部分）。
 
 > **抽样阅读协议 v2**（MD + PDF 双源对照）：
@@ -92,8 +92,9 @@ python3 library/<name>/fix-headings.py library/<name>/source-cleaned.md library/
 分析完成后，编写 `library/<name>/fix-headings.py`，脚本应包含：
 - 该书特有的 OCR 修复（如大写标题中的字母间距问题、`I`→`1`/`o`→`0` 等字体混淆）
 - 需要删除的行（如 "This page intentionally left blank"、出版商信息伪标题）
-- 标题层级分类规则（通常基于精确匹配集合 + 少量正则模式）
-- **脚注段落标记**：检测脚注段落（通常为空行后以数字编号开头的段落），在其前插入 `<!-- footnote N -->` 标记行。write-chunks.py 会据此将脚注归集到 chunk 尾部的 Notes 区域。脚注格式因书而异（数字+空格、方括号、圆括号等），需在抽样阅读时确认。
+- 标题层级分类规则（通常基于精确匹配集合 + 少量正则模式）。**模糊匹配兜底**：对未匹配到精确集合的 `#` 标题，计算与已知章标题集合的编辑距离（可用 `difflib.SequenceMatcher`），距离 ≤ 3 时自动分类为 `##` 并输出警告，避免 OCR 微小变体导致静默 fallthrough。
+- **脚注段落标记**：检测脚注段落（通常为空行后以数字编号开头的段落），在其前插入 `<!-- footnote N -->` 标记行。write-chunks.py 会据此将脚注归集到 chunk 尾部的 Notes 区域。脚注格式因书而异（数字+空格、方括号、圆括号等），需在抽样阅读时确认。**注意短引用脚注**：Ibid.、See、Cf.、Id. 等短引用脚注常不足 5 词，需使用单独的更宽松正则（如 `^\d{1,3}\s+(?:Ibid\.|See\s|Cf\.\s|Id\.,)`，无词数下限）。在 PDF 视觉抽样时，留意页面上最短的脚注，确认正则能覆盖。
+- **脚注阻断段落合并**：标记脚注后，运行一遍合并传递（`merge_around_footnotes`）。MinerU 常将段落在页面边界处截断，底部脚注插入两个段落片段之间。检测模式：line_A 不以句末标点结尾 → 空行 → `<!-- footnote -->` + 脚注内容 → 空行 → line_B 以小写字母或 `(` 开头，将 line_A 与 line_B 合并，脚注标记保留原位。
 - **子节标记**（如有）：检测章内子节标记（如 `(i)`/`(ii)`/`(iii)`、`(a)`/`(b)` 等行首段落标记），在其前插入 `#####` 标题行，使 plan-chunks.py 能在这些位置切分。子节格式因书而异。
 
 运行脚本后，验证标题层级分布是否合理，必要时微调后重新运行。
@@ -179,9 +180,19 @@ chunk-05 [行475-474, 380字] ↑ 不足400字，建议与相邻块合并
 
 使用 **Agent 工具**将描述生成委托给子 agent（指定 `model: "haiku"`），使其在隔离上下文中完成，避免主上下文积压大量 chunk 内容。Haiku 单价约为 Opus 的 1/60，全量读取所有 chunk 的总成本仍远低于 Opus 部分读取，同时消除因部分读取导致的子话题遗漏。
 
-**调用方式**：向子 agent 传入如下任务说明：
+**分批策略**：Haiku 上下文窗口为 200K tokens。每个 chunk 平均约 2500 词（~3300 tokens），加上工具调用开销，**单个子 agent 最多可靠处理约 35 个 chunk**。根据总 chunk 数量决定分批：
 
-> 读取 `library/<name>/` 目录下的所有 chunk 文件（**全量读取**每个 chunk 的完整内容）。
+| 总 chunk 数 | 子 agent 数 | 每批分配 |
+|------------|------------|---------|
+| ≤ 35 | 1 | 全部 |
+| 36-70 | 2 | 前半 + 后半 |
+| 71-105 | 3 | 按编号均分三批 |
+
+多个子 agent 可**并行启动**（在同一条消息中发出多个 Agent 工具调用），无需串行等待。每个子 agent 的 prompt 中明确指定其负责的 chunk 编号范围（如 `chunk-01.md 到 chunk-35.md`）。
+
+**调用方式**：向每个子 agent 传入如下任务说明（替换编号范围）：
+
+> 读取 `library/<name>/` 目录下的 chunk-XX.md 到 chunk-YY.md（**全量读取**每个 chunk 的完整内容）。
 > 对每个 chunk 生成：
 > 1. **主描述**（一行）：节号范围 + 至少1个论证骨架动词 + 2-4个关键术语（附原文术语，如德文原词）
 >    - 论证骨架动词示例："演绎/推导出/证明……"、"区分……与……"、"论证……根据"、"拒绝……而主张……"
@@ -212,7 +223,7 @@ chunk-05 [行475-474, 380字] ↑ 不足400字，建议与相邻块合并
 >   Tags: term1, term2, ...
 > ...
 
-**主上下文**收到子 agent 返回的描述列表后，暂存该列表，交由 Step 6.1 写入文件；不在主上下文保留任何 chunk 正文内容。
+**主上下文**收到所有子 agent 返回的描述列表后（如有多批则合并），暂存完整列表，交由 Step 6.1 写入文件；不在主上下文保留任何 chunk 正文内容。如某个子 agent 返回的描述有遗漏（跳过了部分 chunk 编号），通过 `SendMessage` 继续该 agent 补全缺失部分。
 
 ### Step 6: 更新两级索引
 
@@ -268,14 +279,56 @@ chunk-05 [行475-474, 380字] ↑ 不足400字，建议与相邻块合并
 
 ### Step 7: 清理
 
-将处理完的原始文件从 `inbox/` 移到 `inbox/processed/`（自动创建该目录）。
+将处理完的原始文件从 `inbox/pending/` 移到 `inbox/processed/`。
 如果原文件在 `library/` 根目录，同样移动到 `inbox/processed/`。
 
 向用户报告处理结果：文献名称、切分块数、索引已更新。
 
 ## 批量处理
 
-如果 `inbox/` 中有多个文件，逐个处理，每处理完一个向用户报告。
+如果 `inbox/pending/` 中有多个文件，**先向用户说明处理计划，询问确认后再执行**，不要默默逐个处理。
+
+### 告知用户的信息
+列出检测到的所有文件及其大致规模（行数），说明预计的处理方式：
+
+> 检测到 inbox/pending/ 中有 N 个待处理文件：
+> 1. `文件名A.md`（约 X 行）
+> 2. `文件名B.md`（约 X 行）
+>
+> 建议按以下流水线批量处理，以缩短总耗时：
+> - **阶段一（可并行）**：对所有文件同时运行 clean-mineru.py 清洗脚本
+> - **阶段二（需逐个）**：为每本书分析结构、编写 fix-headings.py（需要 AI 判断，无法并行）
+> - **阶段三（可并行）**：所有书的 plan-chunks + write-chunks + 描述生成同时运行
+>
+> 是否按此顺序开始？还是优先处理某一本？
+
+### 阶段一：并行清洗
+
+获得用户确认后，对所有文件**同时**（在同一条消息中）发出 Bash 调用，运行 clean-mineru.py：
+
+```bash
+# 为每个文件各自运行，无需等待其他文件完成
+python3 ${CLAUDE_PLUGIN_ROOT}/tools/clean-mineru.py inbox/pending/文件A.md library/name-a/source-cleaned.md
+python3 ${CLAUDE_PLUGIN_ROOT}/tools/clean-mineru.py inbox/pending/文件B.md library/name-b/source-cleaned.md
+```
+
+所有清洗完成后进入阶段二。
+
+### 阶段二：逐本分析结构、生成 fix-headings.py
+
+每本书的标题结构不同，必须逐本进行（AI 抽样阅读 → 编写脚本 → 运行 → 验证）。完成一本后向用户简报，再处理下一本。如果用户想在等待期间去做别的事，可以告知用户"第一本正在处理，完成后会继续下一本"。
+
+### 阶段三：并行切分与描述生成
+
+所有书的 fix-headings.py 都完成后（或每本完成后立即加入），对已就绪的书**同时**运行切分和描述生成：
+
+```bash
+# 同时运行所有已就绪的书的 plan-chunks + write-chunks
+python3 ${CLAUDE_PLUGIN_ROOT}/tools/plan-chunks.py library/name-a/source-fixed.md
+python3 ${CLAUDE_PLUGIN_ROOT}/tools/plan-chunks.py library/name-b/source-fixed.md
+```
+
+描述生成（Step 5）的子 agent 也可以跨书并行启动——不同书的子 agent 之间完全独立。
 
 ## 特殊情况
 
