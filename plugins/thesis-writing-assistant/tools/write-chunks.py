@@ -109,12 +109,9 @@ def main():
 
         content = '\n'.join(body_lines)
         comment = f"<!-- 来源：{args.label} | 位置：{c['heading']} -->"
-        prev_label = f"chunk-{c['num']-1:02d}.md" if c['num'] > 1 else "（无）"
-        next_label = f"chunk-{c['num']+1:02d}.md" if c['num'] < total else "（无）"
-        nav = f"<!-- 前块: {prev_label} | 后块: {next_label} -->"
 
         # 构建完整内容
-        full_content = comment + '\n' + nav + '\n\n' + content
+        full_content = comment + '\n\n' + content
 
         # 添加脚注区域（如果有）
         if footnote_lines:
