@@ -206,6 +206,14 @@ def clean_noise(lines: list[str]) -> list[str]:
         if re.match(r'^\s*\d+\s*$', stripped) or re.match(r'^\s*\[\d+\]\s*$', stripped):
             continue
 
+        # 2b. 间距字母行：MinerU 将 PDF 大写间距排版（如 "C H A P T E R  1"）OCR 为
+        #     "c h a p t e r 1" 等行，这些行紧跟真正的 # 标题，删除不丢信息。
+        if re.match(r'^[A-Za-z](?:\s+[A-Za-z0-9])+\s*$', stripped):
+            continue
+
+        # 2c. PDF 软连字符 OCR 残留：如 "diffiÂ culty" → "difficulty"
+        stripped = re.sub(r'([A-Za-z])Â\s*([A-Za-z])', r'\1\2', stripped)
+
         # 3. 排版规格整行删除
         if _TYPESET_LINE_RE.search(stripped):
             noise_free = _MATH_INLINE_RE.sub('', stripped).strip()
@@ -273,7 +281,9 @@ def merge_page_breaks(lines: list[str]) -> list[str]:
                 and not lines[i].strip().startswith('<!--')
                 and not _SENTENCE_END_RE.search(lines[i])
         ):
-            merged = lines[i].rstrip() + lines[i + 4].lstrip()
+            la5 = lines[i].rstrip()
+            lb5 = lines[i + 4].lstrip()
+            merged = la5[:-1] + lb5 if la5.endswith('-') else la5 + lb5
             result.append(merged)
             i += 5
             merge_count += 1
@@ -291,8 +301,10 @@ def merge_page_breaks(lines: list[str]) -> list[str]:
                 and not _SENTENCE_END_RE.search(line_a)     # line_A 不以句末标点结尾
                 and _CONTINUATION_RE.match(lines[i + 2].strip())  # line_B 以小写开头
         ):
-            # 合并 line_A + line_B，跳过空行
-            merged = line_a.rstrip() + ' ' + lines[i + 2].lstrip()
+            # 合并 line_A + line_B，跳过空行；若 line_A 以连字符结尾则去掉连字符直接拼接
+            la = line_a.rstrip()
+            lb = lines[i + 2].lstrip()
+            merged = la[:-1] + lb if la.endswith('-') else la + ' ' + lb
             result.append(merged)
             i += 3  # 跳过 line_A, 空行, line_B
             merge_count += 1

@@ -326,12 +326,23 @@ def plan_chunks(
             i += 1
             continue
 
-        # ── 过小：与下一组合并 ────────────────────────────────────────────
+        # ── 过小：与下一组合并（禁止跨 # 章标题） ────────────────────────
         if total_chars < target_min and i + 1 < len(groups):
             next_g = groups[i + 1]
             next_main = group_main_section(next_g)
-            if not is_toc_section(next_main):
+            next_starts_chapter = next_main['level'] == 1
+            if not is_toc_section(next_main) and not next_starts_chapter:
+                # 同章内向前合并（正常路径）
                 groups[i + 1] = g + next_g
+                i += 1
+                continue
+            if next_starts_chapter and chunks:
+                # 章尾小块：向后并入前一个已处理的 chunk，确保章标题始终起新块
+                chunks[-1]['end'] = end_line
+                chunks[-1]['char_count'] += total_chars
+                chunks[-1]['warnings'] = [
+                    w for w in chunks[-1]['warnings'] if '不足' not in w
+                ]
                 i += 1
                 continue
 

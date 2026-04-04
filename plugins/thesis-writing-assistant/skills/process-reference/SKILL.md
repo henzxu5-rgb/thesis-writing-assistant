@@ -67,18 +67,14 @@ python3 ${CLAUDE_PLUGIN_ROOT}/tools/extract-html.py <输入文件> library/<name
 
 #### 路径 C：Markdown 文件（MinerU 回退路径）
 
+MinerU 输出质量不稳定，所有 MD 文件统一走全量清洗+修复流程，不做平铺/非平铺分支判断。
+
 1. **读引用信息**：`Read` 文件前 20 行，获取作者、书名、出版信息及文献类型
 2. **估算规模**：`Bash: wc -l <文件路径>`
-3. **检测是否平铺型**：并行运行三条 Grep（只统计行数）：
-   - `Grep ^# `（所有标题总数）
-   - `Grep ^## `（二级标题数）
-   - `Grep ^### `（三级标题数）
-   若 `##` 与 `###` 之和少于全部 `#` 标题数的 10%，判定为"平铺型文件"，需执行 Step 2.5。
 
-向用户简要报告（文献名、总行数、是否平铺型、预计块数），确认后继续。
+向用户简要报告（文献名、总行数），确认后继续。
 
-若已有结构层级，复制为 `library/<name>/source-fixed.md` → 跳到 Step 3.5。
-若为平铺型 → 执行 Step 2.5。
+执行 Step 2.5。
 
 #### 路径 D：PDF 文件
 
@@ -91,11 +87,11 @@ PDF 文件无法直接处理。向用户说明：
 
 等待用户回复。
 
-### Step 2.5: 噪音清洗与标题层级修复（仅平铺型 MD 文件）
+### Step 2.5: 噪音清洗、TOC 验证与标题层级修复
 
-**此步骤仅在路径 C 中平铺型文件触达，EPUB/HTML 路径完全跳过。**
+**此步骤仅在路径 C 中触达，EPUB/HTML 路径完全跳过。**
 
-分两个阶段处理：
+分三个阶段处理：
 
 #### 阶段一：通用噪音清洗
 
@@ -103,11 +99,27 @@ PDF 文件无法直接处理。向用户说明：
 python3 ${CLAUDE_PLUGIN_ROOT}/tools/clean-mineru.py <原文件路径> library/<name>/source-cleaned.md
 ```
 
-输出 `source-cleaned.md`。标题层级保持原样，由阶段二处理。
+输出 `source-cleaned.md`。标题层级保持原样，由阶段二.5 和阶段二处理。
+
+#### 阶段一.5：TOC 验证
+
+读取 `source-cleaned.md` 前 100 行，找到目录节，提取所有章标题列表。在全文中搜索每个章标题，汇报：
+- ✅ 正确（以 `#` 开头，是最高级标题）
+- ⚠️ 层级错误（以 `##` 出现，但按目录应为章级 `#`）
+- ❌ 缺失（全文找不到）
+
+向用户展示验证报告，例如：
+> TOC 验证：11/12 章标题正确，以下章标题层级有误：
+> ⚠️ "Kant on Law and Justice"（以 ## 出现，应为 #）
+> ⚠️ "Private Right I"（以 ## 出现，应为 #）
+
+fix-headings.py 中需包含对上述问题的修复。
 
 #### 阶段二：Per-book 标题层级修复
 
 每本书的标题结构不同，使用 per-book 脚本处理。
+
+所有 MD 来源书籍都需要 fix-headings.py，即使 TOC 验证全部通过，脚本也至少需要处理标题页噪音、Index/Bibliography 页删除等通用清理。
 
 **若 `library/<name>/fix-headings.py` 已存在**，直接运行：
 ```
@@ -141,12 +153,13 @@ python3 library/<name>/fix-headings.py library/<name>/source-cleaned.md library/
 
 体内子节标记（`(1)(2)(3)`、`(a)(b)(c)` 等）在 Step 3.5 草案审查时作为候选拆分点使用，不在此处转为标题。
 
-**验证**：运行脚本后只需确认：
-- `##` 数量 ≈ 目录中章/部数（误差 ±2 以内）
-- `###` 数量 ≈ 目录中节数
+**验证**：运行脚本后确认：
+- 重新执行阶段一.5 的 TOC 验证，所有章标题应 ✅（无 ⚠️ 或 ❌）
+- `##` 数量 ≈ 目录中节数（误差 ±2 以内）
+- `###` 数量 ≈ 目录中子节数
 - 若书有脚注，脚注标记数 > 0
 
-通常不需要调试循环。修复完成后告知用户 source-fixed.md 已生成，可打开检查；如有误判，用户可手动调整后告知继续。
+修复完成后告知用户 source-fixed.md 已生成，可打开检查；如有误判，用户可手动调整后告知继续。
 
 ### Step 3.5: 生成切分草案并审查
 
@@ -177,9 +190,12 @@ plan-chunks.py 已给出 N 个均匀分布的候选拆分点（N ≈ 块字数 /
 
 ### Step 4: 执行切分并保存
 
-1. 为该文献创建目录：`library/<文献简称>/`
-   - 文献简称使用英文 kebab-case，如 `kant-metaphysics-morals`、`zhang-rechtstaat-2020`
-   - 如果用户通过 `--name` 指定了简称，使用用户指定的
+1. 为该文献创建目录：`library/<文献目录名>/`
+   - **命名格式：`完整书名-作者`**，与 `sources/` 文件命名规则一致（去掉扩展名）
+   - 命名语言服从原语言：中文书用中文，英文书用英文，不转拼音
+   - 书名取完整标题；若含副标题且超过 80 字符，可省略副标题
+   - 示例：`道德形而上学-康德`、`Kant's Doctrine of Right A Commentary-Byrd Hruschka`、`Response to Willaschek-Nance`
+   - 如果用户通过 `--name` 指定了目录名，使用用户指定的
 
 2. 生成 `meta.md`：
 ```markdown
@@ -255,6 +271,7 @@ plan-chunks.py 已给出 N 个均匀分布的候选拆分点（N ≈ 块字数 /
 1. 运行 `cat library/<name>/index-part-*.md` 确认所有批次文件已生成
 2. 如某批次有遗漏，通过 `SendMessage` 继续该 agent 补全
 3. 将所有 index-part 文件的内容合并，交由 Step 6.1 写入最终 index.md
+4. 运行 `rm library/<name>/index-part-*.md` 删除中间文件
 
 ### Step 6: 更新两级索引
 
@@ -298,9 +315,9 @@ plan-chunks.py 已给出 N 个均匀分布的候选拆分点（N ≈ 块字数 /
 在 `library/index.md` 末尾追加：
 
 ```markdown
-## <文献标题>（`<目录名>/`）
+## <文献标题>
 
-[文献类型标记] <简要引用>。<全文一句话概述>。
+[文献类型标记] <作者>. <书/文名>. <年份>. <全文一句话概述>。
 共 N 个小块 → 详见 `<目录名>/index.md`
 ```
 
