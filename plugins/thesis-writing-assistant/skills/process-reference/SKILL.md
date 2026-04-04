@@ -6,32 +6,70 @@ description: >
   「index this」，或用户提到已将文件放入 inbox/pending/ 目录时触发。
   当用户上传或提供一篇完整的学术文献（书籍、论文）并希望 AI 能够
   理解和记忆其内容时，也应触发此技能。
+  支持 EPUB、HTML、Markdown、PDF 格式。
 argument-hint: "[文献文件名或路径] [--name 文献简称]"
 ---
 
 # 文献处理与切分
 
-将用户提供的完整文献（整本书或论文的 MD 文件）自动切分成小块，
+将用户提供的完整文献（整本书或论文）自动切分成小块，
 为每块生成描述摘要，并更新全局索引，以便后续按需检索。
+
+**支持的格式**：`.epub`（推荐）、`.html`/`.htm`、`.md`、`.pdf`（需转换）
 
 ## 工作流程
 
 ### Step 1: 定位原始文献
 
-扫描 `inbox/pending/` 目录，列出所有待处理的 MD 文件。
+扫描 `inbox/pending/` 目录，列出所有待处理的文件（`.epub`、`.html`、`.htm`、`.md`、`.pdf`）。
 如果用户指定了具体文件名，直接使用该文件。
 
-如果 `inbox/pending/` 为空，检查 `library/` 根目录是否有待处理的 MD 文件（用户有时会直接放在 library/ 而非 inbox/pending/），如果发现则正常处理，并提示用户下次放入 inbox/pending/。
+如果 `inbox/pending/` 为空，检查 `library/` 根目录是否有待处理文件，如果发现则正常处理，并提示用户下次放入 inbox/pending/。
 
 如果以上均为空且用户提供了文件路径，从该路径读取。
 
-### Step 2: 分析文献结构（不读全文）
+### Step 2: 格式检测与提取
 
-用以下三个轻量操作完成分析，**禁止全量读取原始文献**：
+根据文件扩展名选择提取路径。向用户简要报告检测结果后继续。
 
-1. **读引用信息**：`Read` 文件前 20 行，获取作者、书名、出版信息及文献类型（M/J/D 等）
-2. **估算规模**：`Bash: wc -l <文件路径>`，得到总行数
-3. **检测是否平铺型**：并行运行三条 Grep（只统计行数，不返回内容）：
+#### 路径 A：EPUB 文件（快速路径）
+
+```bash
+mkdir -p library/<name>/
+python3 ${CLAUDE_PLUGIN_ROOT}/tools/extract-epub.py <输入文件> library/<name>/source-fixed.md
+```
+
+脚本自动完成：
+- 提取书名、标题层级（h1→##, h2→###, h3→####）
+- 检测并回填尾注/脚注（插入 `<!-- footnote N -->` 标记）
+- 去除目录页、版权页等非正文内容
+- 输出统计信息（行数、标题计数、脚注数）
+
+验证输出：用 Grep 确认 `##`、`###` 数量合理。
+
+**→ 直接跳到 Step 3.5**（跳过 Step 2.5 的清洗和标题修复）
+
+#### 路径 B：HTML 文件（快速路径）
+
+```bash
+mkdir -p library/<name>/
+python3 ${CLAUDE_PLUGIN_ROOT}/tools/extract-html.py <输入文件> library/<name>/source-fixed.md
+```
+
+脚本自动完成：
+- 用 readability 提取正文主体（去除导航、广告等）
+- 保留标题层级和脚注
+- 从 `<meta>` 标签提取引用元数据
+
+验证输出：用 Grep 确认标题数量合理。
+
+**→ 直接跳到 Step 3.5**
+
+#### 路径 C：Markdown 文件（MinerU 回退路径）
+
+1. **读引用信息**：`Read` 文件前 20 行，获取作者、书名、出版信息及文献类型
+2. **估算规模**：`Bash: wc -l <文件路径>`
+3. **检测是否平铺型**：并行运行三条 Grep（只统计行数）：
    - `Grep ^# `（所有标题总数）
    - `Grep ^## `（二级标题数）
    - `Grep ^### `（三级标题数）
@@ -39,7 +77,23 @@ argument-hint: "[文献文件名或路径] [--name 文献简称]"
 
 向用户简要报告（文献名、总行数、是否平铺型、预计块数），确认后继续。
 
-### Step 2.5: 噪音清洗与标题层级修复（仅平铺型文件）
+若已有结构层级，复制为 `library/<name>/source-fixed.md` → 跳到 Step 3.5。
+若为平铺型 → 执行 Step 2.5。
+
+#### 路径 D：PDF 文件
+
+PDF 文件无法直接处理。向用户说明：
+
+> 检测到 PDF 文件。PDF 格式缺少语义结构，需要转换后才能处理。建议：
+> 1. **优先查找 EPUB 版本**（Z-Library、出版商网站等），EPUB 处理质量最高
+> 2. **期刊论文**可尝试获取出版商的 HTML 全文页面
+> 3. 如以上不可用，使用 MinerU 转换为 MD 后放回 `inbox/pending/`
+
+等待用户回复。
+
+### Step 2.5: 噪音清洗与标题层级修复（仅平铺型 MD 文件）
+
+**此步骤仅在路径 C 中平铺型文件触达，EPUB/HTML 路径完全跳过。**
 
 分两个阶段处理：
 
@@ -257,53 +311,48 @@ plan-chunks.py 已给出 N 个均匀分布的候选拆分点（N ≈ 块字数 /
 将处理完的原始文件从 `inbox/pending/` 移到 `inbox/processed/`。
 如果原文件在 `library/` 根目录，同样移动到 `inbox/processed/`。
 
-向用户报告处理结果：文献名称、切分块数、索引已更新。
+向用户报告处理结果：文献名称、源格式、切分块数、索引已更新。
 
 ## 批量处理
 
 如果 `inbox/pending/` 中有多个文件，**先向用户说明处理计划，询问确认后再执行**，不要默默逐个处理。
 
 ### 告知用户的信息
-列出检测到的所有文件及其大致规模（行数），说明预计的处理方式：
+列出检测到的所有文件及其格式和大致规模，说明预计的处理方式：
 
 > 检测到 inbox/pending/ 中有 N 个待处理文件：
-> 1. `文件名A.md`（约 X 行）
-> 2. `文件名B.md`（约 X 行）
+> 1. `文件A.epub`（EPUB，快速路径）
+> 2. `文件B.html`（HTML，快速路径）
+> 3. `文件C.md`（MD，约 X 行，需清洗+标题修复）
 >
-> 建议按以下流水线批量处理，以缩短总耗时：
-> - **阶段一（可并行）**：对所有文件同时运行 clean-mineru.py 清洗脚本
-> - **阶段二（需逐个）**：为每本书分析结构、编写 fix-headings.py（需要 AI 判断，无法并行）
-> - **阶段三（可并行）**：所有书的 plan-chunks + write-chunks + 描述生成同时运行
+> 建议按以下流水线批量处理：
+> - **EPUB/HTML 文件（可并行）**：同时运行提取脚本，直接进入切分
+> - **MD 文件（需逐个）**：逐本分析结构、编写 fix-headings.py
+> - **切分+描述生成（可并行）**：所有书的 plan-chunks + write-chunks + 描述生成同时运行
 >
 > 是否按此顺序开始？还是优先处理某一本？
 
-### 阶段一：并行清洗
+### EPUB/HTML 并行提取
 
-获得用户确认后，对所有文件**同时**（在同一条消息中）发出 Bash 调用，运行 clean-mineru.py：
-
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/tools/clean-mineru.py inbox/pending/文件A.md library/name-a/source-cleaned.md
-python3 ${CLAUDE_PLUGIN_ROOT}/tools/clean-mineru.py inbox/pending/文件B.md library/name-b/source-cleaned.md
-```
-
-### 阶段二：逐本分析结构、生成 fix-headings.py
-
-每本书的目录结构不同，必须逐本进行（AI 读目录 → 编写简化脚本 → 运行 → 验证），**通常无需调试循环**。完成一本后向用户简报，再处理下一本。
-
-### 阶段三：并行切分与描述生成
-
-所有书的 fix-headings.py 都完成后（或每本完成后立即加入），对已就绪的书**同时**运行切分和描述生成：
+获得用户确认后，对所有 EPUB/HTML 文件**同时**发出 Bash 调用：
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/tools/plan-chunks.py library/name-a/source-fixed.md
-python3 ${CLAUDE_PLUGIN_ROOT}/tools/plan-chunks.py library/name-b/source-fixed.md
+python3 ${CLAUDE_PLUGIN_ROOT}/tools/extract-epub.py inbox/pending/文件A.epub library/name-a/source-fixed.md
+python3 ${CLAUDE_PLUGIN_ROOT}/tools/extract-html.py inbox/pending/文件B.html library/name-b/source-fixed.md
 ```
 
-描述生成（Step 5）的子 agent 也可以跨书并行启动。
+### MD 文件逐本处理
+
+每本书的目录结构不同，必须逐本进行（AI 读目录 → 编写脚本 → 运行 → 验证）。
+
+### 并行切分与描述生成
+
+所有书的提取完成后，对已就绪的书**同时**运行切分和描述生成。描述生成的子 agent 可以跨书并行启动。
 
 ## 特殊情况
 
 - **用户已按章分好多个 MD**：视为同一文献的多个部分，放入同一个 `library/<name>/` 目录，chunk 编号连续
 - **文献缺少引用信息**：询问用户补充，或标注 `[引用信息待补充]`
 - **文献内容过短**（不足 400 字）：不切分，整体作为一个 chunk，仍然生成 meta.md 和索引条目
-- **用户手动修改了 source-fixed.md**：从修改后的文件重新执行 Step 3 起的流程
+- **用户手动修改了 source-fixed.md**：从修改后的文件重新执行 Step 3.5 起的流程
+- **EPUB 提取脚注数为 0 但书中应有脚注**：可能是 EPUB 脚注格式不被支持，告知用户并建议检查 source-fixed.md

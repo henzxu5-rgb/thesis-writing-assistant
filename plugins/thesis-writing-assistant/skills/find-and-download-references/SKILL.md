@@ -7,7 +7,6 @@ description: >
   「download references」「获取全文」「下载PDF」「帮我找到这篇论文」
   「把文献下载下来」，或讨论某个学术主题需要哪些文献支撑时触发。
 argument-hint: "[主题关键词或文献标题] [--type monograph|paper|all] [--download-only]"
-allowed-tools: [Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, Bash]
 ---
 
 # 文献搜索、评估与下载
@@ -150,16 +149,34 @@ API 覆盖不足的领域，使用 WebSearch 补充：
    - 外文：`"{论文完整标题}" filetype:pdf`，以及作者主页、大学仓库
    - 中文：百度学术搜索标题，检查是否有免费下载
 
+#### 5.1b 格式偏好（下载前检查）
+
+在下载前，按以下优先级查找最佳格式：
+
+**书籍类文献：**
+1. **EPUB**（首选）：查找 Z-Library、Project Gutenberg、Open Library、出版商开放获取
+2. **PDF**（回退）：OA PDF 链接
+
+**期刊论文：**
+1. **HTML 全文**（首选）：检查出版商是否提供 HTML 全文页面（Springer、Wiley、Cambridge UP 等大多数出版商都有）。使用 WebFetch 获取全文 HTML 页面并保存。
+2. **PDF**（回退）：OA PDF 链接
+
+优先使用 EPUB/HTML 的原因：这些格式保留了语义结构（标题层级、脚注），后续 `/process-reference` 处理时无需清洗和标题修复，节省约 70% 的 token 消耗。
+
 #### 5.2 下载文件
 
 ```bash
 mkdir -p sources/
+# EPUB
+curl -L -o "sources/{文件名}.epub" "{下载URL}"
+# HTML（使用 WebFetch 保存完整页面）
+# PDF
 curl -L -o "sources/{文件名}.pdf" "{下载URL}"
 ```
 
 **文件命名规则：**
-- 英文：`作者姓-年份-简短标题.pdf`（如 `ripstein-2009-force-freedom.pdf`）
-- 中文：`作者拼音-年份-简短标题.pdf`（如 `wu-yan-2016-fa-ziyou-qiangzhili.pdf`）
+- 英文：`作者姓-年份-简短标题.{epub|html|pdf}`（如 `ripstein-2009-force-freedom.epub`）
+- 中文：`作者拼音-年份-简短标题.{epub|html|pdf}`（如 `wu-yan-2016-fa-ziyou-qiangzhili.epub`）
 - 简短标题取 2-4 个关键词，用连字符连接，全小写，避免特殊字符
 
 同一域名的连续下载之间间隔 2 秒。
@@ -202,9 +219,10 @@ ls -la "sources/{文件名}.pdf"
 
 **后续步骤提醒：**
 > 下载的文件存放在 `sources/` 目录。要让 AI 能在写作时引用这些文献：
-> 1. 将 PDF 转换为 Markdown 格式
-> 2. 放入 `inbox/pending/` 目录
-> 3. 运行 `/process-reference` 进行切分和索引
+> 1. 将文件（EPUB/HTML/MD）放入 `inbox/pending/` 目录
+> 2. 运行 `/process-reference` 进行切分和索引
+> 3. **EPUB 和 HTML 文件可直接处理**，无需外部转换！
+> 4. PDF 文件仍需先用 MinerU 转为 MD，或优先查找 EPUB/HTML 版本
 
 如果用户希望保存推荐列表，写入 `research/` 目录。
 

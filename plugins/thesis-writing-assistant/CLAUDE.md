@@ -51,10 +51,10 @@
 - 文献库全局索引：`library/index.md`（书级概述）
 - 文献库局部索引：`library/<书目目录>/index.md`（chunk 级描述在此）
 - 文献库目录：`library/`
-- 原始文献入口：`inbox/pending/`（待处理）、`inbox/processed/`（已处理）
+- 原始文献入口：`inbox/pending/`（支持 `.epub`、`.html`、`.md` 格式，待处理）、`inbox/processed/`（已处理）
 - 论文输出目录：`thesis/`
 - 大纲文件：`thesis/outline.md`
-- 原始文献下载：`sources/`（用户将 PDF 转换为 Markdown 后放入 inbox/pending/ 进行处理）
+- 原始文献下载：`sources/`（EPUB/HTML/PDF/DOC 文件；EPUB 和 HTML 可直接放入 inbox/pending/ 处理，PDF 需先转换为 MD）
 - 学术 API 参考：`${CLAUDE_PLUGIN_ROOT}/references/api-endpoints.md`
 
 ---
