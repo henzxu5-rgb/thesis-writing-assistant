@@ -85,6 +85,16 @@ PDF 文件无法直接处理。向用户说明：
 > 2. **期刊论文**可尝试获取出版商的 HTML 全文页面
 > 3. 如以上不可用，使用 MinerU 转换为 MD 后放回 `inbox/pending/`
 
+**MinerU 调用方式**（安装在 `~/mineru-env` 虚拟环境，命令为 `mineru`，非系统级）：
+
+```bash
+MINERU_MODEL_SOURCE=modelscope ~/mineru-env/bin/mineru \
+  -p <PDF路径> -o <输出目录> -b pipeline -m auto -f false -l <lang>
+```
+
+- `-l en`：英文；`-l ch`：中文
+- 输出目录下会生成 `<文件名>/auto/<文件名>.md`，将该 MD 文件放入 `inbox/pending/` 继续处理
+
 等待用户回复。
 
 ### Step 2.5: 噪音清洗、TOC 验证与标题层级修复
