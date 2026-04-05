@@ -190,11 +190,44 @@ plan-chunks.py 已给出 N 个均匀分布的候选拆分点（N ≈ 块字数 /
 
 > **禁止**：不得从头线性读取超大块的完整正文。单块 Read 调用数 ≤ 候选点数，且每次 `limit ≤ 10`。
 
+**拆分条目格式**：
+
+将原始 chunk 行替换为多行，用字母后缀标识子块：
+
+```
+chunk-05  [行241-301, ~2500字] # 第二节（上）
+chunk-05b [行302-365, ~2500字] # 第二节（中）SPLIT@302
+chunk-05c [行366-429, ~2500字] # 第二节（下）SPLIT@430
+```
+
+- 原始编号保留，追加 b/c/d 后缀
+- 每个子块须有正确的行范围和估算字数
+- **无需手动调整后续 chunk 编号**——write-chunks.py 自动重编号为连续整数并回写 draft-chunks.md
+
 **草案审查强制要求**：
 - `↑ 不足字数` 的**每一个** chunk 都必须明确处理——合并入相邻 chunk，或保留并记录原因
 - **禁止**存在未处理的不足字数 warning 的 chunk 进入 Step 4
 
-调整后形成最终切分方案，再执行 Step 4。
+调整后形成最终切分方案。
+
+### Step 3.7: Token 预算估算
+
+在执行切分前，基于最终草案向用户报告预估的 AI token 消耗：
+
+1. 统计 `source-fixed.md` 文件大小（`wc -c`）
+2. 计算预估值：
+   - **描述生成（haiku 子 agent）**：文件字节数 ÷ 4 ≈ input tokens
+   - **其他步骤（主模型）**：约 5-15K tokens（索引组装已脚本化）
+3. 向用户报告：
+
+> 📊 Token 预算估算：
+> - 切分方案：N 个 chunk
+> - 描述生成（haiku）：约 XX K input tokens
+> - 其他步骤（主模型）：约 10K tokens
+>
+> 是否继续？
+
+用户确认后执行 Step 4。
 
 ### Step 4: 执行切分并保存
 
@@ -205,22 +238,24 @@ plan-chunks.py 已给出 N 个均匀分布的候选拆分点（N ≈ 块字数 /
    - 示例：`道德形而上学-康德`、`Kant's Doctrine of Right A Commentary-Byrd Hruschka`、`Response to Willaschek-Nance`
    - 如果用户通过 `--name` 指定了目录名，使用用户指定的
 
-2. 生成 `meta.md`：
+2. 生成 `meta.md` **骨架**（概述在 Step 6.1.5 补充，此处不写）：
 ```markdown
-# <文献标题>
+# <文献��题>
 
 ## 引用信息
 <GB/T 7714 格式的完整引用>
 
 ## 全书/全文概述（200-300字）
-<概括文献的核心论点、研究方法、主要结论>
+[待 Step 6.1.5 补充]
 
 ## 与论文的关联
-<简述该文献对论文写作的价值和可能的用途>
+[待 Step 6.1.5 补充]
 
-## 小块清单
+## 小块清���
 共 N 个小块，详见 library/<name>/index.md
 ```
+
+> **注意**：此步骤只写引用信息和小块清单，**不回读 source-fixed.md 写概述**。概述将在 Step 6.1.5 根据 index.md 中的描述信息生成。
 
 3. 运行插件内置脚本自动写出所有 chunk 文件：
    ```
@@ -234,6 +269,12 @@ plan-chunks.py 已给出 N 个均匀分布的候选拆分点（N ≈ 块字数 /
 ### Step 5: 为每块生成描述（子 agent 模式）
 
 使用 **Agent 工具**委托子 agent（`model: "haiku"`）生成描述，避免主上下文积压 chunk 内容。
+
+**断点续传**：在派发子 agent 之前，检查 `library/<name>/` 是否已有 `index-part-*.md` 文件。如果有：
+1. 用 Grep 解析已有 index-part 文件中的 chunk 编号（匹配 `^chunk-\d+\.md:` 行）
+2. 确定尚未描述的 chunk 范围
+3. 只对未完成的 chunk 编号派发子 agent
+4. 如果所有 chunk 已描述完毕，跳过 Step 5，直接进入 Step 6
 
 **分批**：单个子 agent 最多处理 35 个 chunk；多个子 agent 可**并行启动**。
 
@@ -278,14 +319,30 @@ plan-chunks.py 已给出 N 个均匀分布的候选拆分点（N ≈ 块字数 /
 **主上下文**收到所有子 agent 的状态确认后：
 1. 运行 `cat library/<name>/index-part-*.md` 确认所有批次文件已生成
 2. 如某批次有遗漏，通过 `SendMessage` 继续该 agent 补全
-3. 将所有 index-part 文件的内容合并，交由 Step 6.1 写入最终 index.md
-4. 运行 `rm library/<name>/index-part-*.md` 删除中间文件
+3. 进入 Step 6（index-part 文件保留，由 Step 6 脚本或 AI 消费后清理）
 
 ### Step 6: 更新两级索引
 
 **6.1 新建/更新局部索引** `library/<name>/index.md`
 
-创建该文献的局部索引，按 Part/Chapter（篇/章）分组，包含所有 chunk 的描述、子话题和关键术语标签：
+**优先使用脚本**（省 token）：
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/tools/build-index.py library/<name>/
+```
+
+脚本自动完成：
+- 读取所有 `index-part-*.md` 中的 chunk 描述
+- 读取 `meta.md` 获取引用信息和标题
+- 读取 `source-fixed.md` 确定章级标题用于分组
+- 读取 `draft-chunks.md` 获取 chunk 行范围映射
+- 按章分组输出 `index.md`
+
+**检查退出码**：
+- 退出码 0 = 成功。清理中间文件：`rm library/<name>/index-part-*.md`
+- 退出码非 0 = 脚本报错。**回退到 AI 手动操作**：读取 index-part 文件内容，按下方格式手动拼装 index.md，然后清理 index-part 文件。
+
+**AI 手动操作格式参考**（仅在脚本失败时使用）：
 
 ```markdown
 # <文献标题>局部索引
@@ -297,26 +354,30 @@ plan-chunks.py 已给出 N 个均匀分布的候选拆分点（N ≈ 块字数 /
 
 共 N 个小块。
 
+---
+
 ### <Part/篇/章标题> (chunk-01 ~ chunk-NN)
-<一句话概括该部分主题>
 
 - **chunk-01.md**: <主描述>
-  - <子话题1>
-  - <子话题2>
-  Tags: term1, term2, Recht, ...
-- **chunk-02.md**: <主描述>
-  - <子话题1>
-  - <子话题2>
-  - <子话题3>
-  Tags: term1, term2, ...
+    - <子话题1>
+    - <子话题2>
+    Tags: term1, term2, Recht, ...
 
 ### <下一个 Part/篇/章标题> (chunk-NN ~ chunk-MM)
-<一句话概括>
 
 - ...
 ```
 
-分组依据：根据 chunk 标题中的 Part/Chapter/篇/章 信息推断。若文献无明显分部结构（如单篇论文），则不分组，直接平铺列出。
+分组依据：根据 source-fixed.md 中的最高级标题（通常为 `#` 或 `##`）划分。若文献无明显分部结构（如单篇论文），则不分组，直接平铺列出。
+
+**6.1.5 补充 meta.md 概述**
+
+index.md 生成后，读取 `library/<name>/index.md`（此时描述已汇总），据此为 `meta.md` 补充概述：
+1. 读取 index.md 中各章描述，综合为 200-300 字概述
+2. 用 Edit 工具将 meta.md 中的概述占位符替换为正式内容
+3. 同时补充"与论文的关联"部分
+
+> 此步骤**禁止**回读 source-fixed.md。index.md 中的描述已包含足够信息。
 
 **6.2 更新全局索引** `library/index.md`
 

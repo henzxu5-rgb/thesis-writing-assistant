@@ -14,7 +14,7 @@ import argparse
 from pathlib import Path
 
 CHUNK_LINE_RE = re.compile(
-    r'^chunk-(\d+)\s+\[行(\d+)-(\d+),\s*~?\d+[字词]\]\s+#\s*(.+?)(?:\s*\|.*)?$'
+    r'^chunk-(\d+[a-z]?)\s+\[行(\d+)-(\d+),\s*~?\d+[字词]\]\s+#\s*(.+?)(?:\s*\|.*)?$'
 )
 
 _FOOTNOTE_MARKER_RE = re.compile(r'^<!--\s*footnote\s+(\d+)\s*-->')
@@ -26,11 +26,25 @@ def parse_draft(draft_path: str) -> list[dict]:
         m = CHUNK_LINE_RE.match(line.strip())
         if m:
             chunks.append({
-                'num':     int(m.group(1)),
+                'raw_id':  m.group(1),
                 'start':   int(m.group(2)),   # 1-indexed
                 'end':     int(m.group(3)),   # 1-indexed, inclusive
                 'heading': m.group(4).strip(),
             })
+
+    # 按 (数字部分, 字母后缀) 排序：5 < 5b < 5c < 6
+    def sort_key(c):
+        r = c['raw_id']
+        digits = r.rstrip('abcdefghijklmnopqrstuvwxyz')
+        suffix = r[len(digits):] if len(r) > len(digits) else ''
+        return (int(digits), suffix)
+
+    chunks.sort(key=sort_key)
+
+    # 赋予连续编号
+    for i, c in enumerate(chunks, 1):
+        c['num'] = i
+
     return chunks
 
 
@@ -127,6 +141,27 @@ def main():
         out_file.write_text(full_content + '\n', encoding='utf-8')
         fn_tag = f"  (+{len([l for l in footnote_lines if l.strip()])} note lines)" if footnote_lines else ""
         print(f"  写出 chunk-{c['num']:02d}.md  ({c['heading'][:50]}){fn_tag}")
+
+    # 回写 draft-chunks.md：将字母后缀编号替换为连续纯数字
+    raw_to_num = {c['raw_id']: c['num'] for c in chunks}
+    has_alpha = any(c['raw_id'] != str(c['num']) and c['raw_id'] != f'{c["num"]:02d}'
+                    for c in chunks)
+    if has_alpha:
+        draft_lines = draft.read_text(encoding='utf-8').splitlines()
+        rewritten = []
+        for dl in draft_lines:
+            m = CHUNK_LINE_RE.match(dl.strip())
+            if m and m.group(1) in raw_to_num:
+                new_num = raw_to_num[m.group(1)]
+                dl = dl.replace(f'chunk-{m.group(1)}', f'chunk-{new_num:02d}', 1)
+            rewritten.append(dl)
+        # 更新首行的块数统计
+        for i, rl in enumerate(rewritten):
+            if rl.startswith('共 ') and '个内容块' in rl:
+                rewritten[i] = re.sub(r'共 \d+ 个内容块', f'共 {len(chunks)} 个内容块', rl)
+                break
+        draft.write_text('\n'.join(rewritten) + '\n', encoding='utf-8')
+        print(f'已重写 draft-chunks.md，chunk 编号重排为 1-{len(chunks)}')
 
     print(f'\n共写出 {len(chunks)} 个 chunk 文件到 {out_dir}')
     if fn_total:

@@ -448,11 +448,22 @@ def main():
             line += f' | {warn_str}'
         out_lines.append(line)
 
+    # Token 预算估算
+    src_bytes = src.stat().st_size
+    estimated_haiku_tokens = src_bytes // 4
+    out_lines.append('')
+    out_lines.append('## Token 预算估算')
+    out_lines.append(f'- 源文件大小: {src_bytes:,} 字节')
+    out_lines.append(f'- 描述生成（haiku 子 agent）: ~{estimated_haiku_tokens // 1000}K input tokens')
+    out_lines.append(f'- 其他步骤（主模型）: ~10K tokens')
+    out_lines.append(f'- 子 agent 批次: {max(1, (len(chunks) + 34) // 35)} 个')
+
     draft_path.write_text('\n'.join(out_lines) + '\n', encoding='utf-8')
     print(f'草案输出到 {draft_path}')
 
     warn_count = sum(1 for c in chunks if c['warnings'])
     print(f'需关注的块: {warn_count} 个（含警告）')
+    print(f'Token 预算: haiku ~{estimated_haiku_tokens // 1000}K + 主模型 ~10K')
 
 
 if __name__ == '__main__':
