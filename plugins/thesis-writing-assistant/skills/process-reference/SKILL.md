@@ -242,10 +242,12 @@ chunk-05c [行366-429, ~2500字] # 第二节（下）SPLIT@430
 ### Step 4: 执行切分并保存
 
 1. 为该文献创建目录：`library/<文献目录名>/`
-   - **命名格式：`完整书名-作者`**，与 `sources/` 文件命名规则一致（去掉扩展名）
+   - **命名格式：`完整书名-作者 译者（译）`**，与 `sources/` 文件命名规则一致（去掉扩展名）
    - 命名语言服从原语言：中文书用中文，英文书用英文，不转拼音
-   - 书名取完整标题；若含副标题且超过 80 字符，可省略副标题
-   - 示例：`道德形而上学-康德`、`Kant's Doctrine of Right A Commentary-Byrd Hruschka`、`Response to Willaschek-Nance`
+   - 书名取**完整标题**（含副标题），标题中的冒号、破折号等标点去掉后用空格代替
+   - 西文作者只写**姓**；双作者两姓之间加`、`；中文作者写全名
+   - 有译者的在作者后加 `译者名（译）` 或 `译者名（译注）`
+   - 示例：`道德形而上学（注释本）-康德 张荣 李秋零（译注）`、`Kant's Doctrine of Right A Commentary-Byrd、Hruschka`、`Right and Coercion Can Kant's Conception of Right be Derived from his Moral Theory-Willaschek`、`良好的自由秩序 康德的法哲学与国家哲学-凯尔斯汀 汤沛丰（译）`
    - 如果用户通过 `--name` 指定了目录名，使用用户指定的
 
 2. 生成 `meta.md` **骨架**（概述在 Step 6.1.5 补充，此处不写）：
