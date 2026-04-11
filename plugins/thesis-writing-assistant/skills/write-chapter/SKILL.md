@@ -24,42 +24,49 @@ allowed-tools: [Read, Write, Edit, Glob, Grep]
   - **expand**：在已有内容基础上扩展某一节
   - **revise**：根据用户反馈修改已有内容
 
-### Step 2: 读取大纲
+### Step 2: 读取分章存放的大纲—写作计划文件
 
-读取 `thesis/outline.md`，找到目标章节的大纲内容：
-- 该章节的核心论点
-- 在全文论证中的位置和作用
+大纲采用分章存放，位于 `thesis/outline/` 目录下：
+- `thesis/outline/index.md` — 全局索引（中心论点、推进逻辑、章节文件列表、参考文献缺口、写作状态）
+- `thesis/outline/introduction.md` / `chapter1.md` / `chapter2.md` / `chapter3.md` / `conclusion.md` — 各章详细规划
+
+**读取策略**：
+1. 先读 `thesis/outline/index.md` 了解全局结构与目标章节在全文中的位置
+2. 根据目标章节确定对应的分章文件：
+   - 绪论 → `outline/introduction.md`
+   - 第 N 章 → `outline/chapter<N>.md`
+   - 结论 → `outline/conclusion.md`
+3. 读取该分章文件，找到目标小节，提取四个关键字段：
+   - **核心论点**：该节要论证什么
+   - **论证思路**：论证如何展开（先 A 后 B 等）
+   - **写法**：呈现方式与语气指示
+   - **文献**：所需 chunk 列表（含每个 chunk 的关联说明）
+
+**不要一次读取所有分章文件**——只读与目标章节相关的那一份。这是分章拆分的主要目的。
+
+同时关注：
+- 该章节在全文中的位置和作用（从 `index.md` 的推进逻辑中获取）
 - 与前后章节的逻辑关系
-- 大纲中标注的预计字数
+- 该章节预计字数
 
-如果大纲不存在，提示用户先运行 `/thesis-outline`。
+如果 `thesis/outline/` 目录或对应分章文件不存在，或目标小节缺少上述四个字段中的任何一个，**停下并提示用户先运行 `/thesis-outline`** 完善规划，不要凭空补齐。
 
 ### Step 3: 加载参考文献
 
-**优先路径——使用写作计划（推荐，省 token）**：
-
-检查 `thesis/writing-plan.md` 是否存在。如果存在：
-1. 读取 writing-plan.md，找到当前章节/小节对应的 chunk 列表
-2. **直接读取**列出的 chunk 文件（可并行发出多个 Read 调用）
+**直接从分章 outline 文件中拿到 chunk 列表**：
+1. 从 Step 2 提取的"文献"字段中获取所需 chunk 路径
+2. **直接并行读取**这些 chunk 文件（多个 Read 调用一次发出）
 3. 跳过索引遍历，不需要读 `library/index.md` 或各书的 `index.md`
-4. 如果 writing-plan 标注某节"未覆盖"，告知用户文献不足
+4. 如果该节在 `outline/index.md` 的"参考文献缺口"中被标记，告知用户文献不足
 
-**回退路径——两级检索（writing-plan 不存在时）**：
-
-1. 读取 `library/index.md` → 确认与当前章节相关的书目
-2. 读取相关书目的 `library/<书目目录>/index.md` → 从 chunk 描述中筛选与当前写作内容相关的块
-3. **只读取**筛选出的 chunk 文件，不要读取无关的小块
-4. 如果某个相关文献的 meta.md 有助于理解全局，也可以读取
-5. 如果索引中找不到足够的相关文献，告知用户哪些方面的文献不足
-
-**两条路径均禁止**：一次性读取所有小块文件或整个 library/ 目录。
+**禁止**：一次性读取所有小块文件或整个 library/ 目录；
+**禁止**：在分章 outline 文件已列出 chunk 的情况下绕过它去自行检索。
 
 ### Step 4: 读取已有内容
 
-检查 `thesis/` 下是否已有该章节文件。
-如有，读取现有内容以保持连贯性和避免重复。
+正文按章拆分存放于 `thesis/chapters/`，每章一个文件（`introduction.md` / `chapter1.md` / `chapter2.md` / … / `conclusion.md`）。检查 `thesis/chapters/<目标章节>.md` 是否已存在，若存在则读取现有内容以保持连贯性和避免重复。
 
-也检查前一章节的结尾段落，确保衔接自然。
+也只读取**前一章节**文件的结尾段落（而非全文），确保衔接自然。不要一次加载所有章节文件——按章拆分的目的正是避免这种上下文爆炸。
 
 **draft 模式续写检测**：如果章节文件已存在且包含部分小节内容：
 - 识别已完成的最后一个小节标题（`## X.Y`）
@@ -109,13 +116,13 @@ allowed-tools: [Read, Write, Edit, Glob, Grep]
 [5] WILLASCHEK M. Right and Coercion[J]. International Journal of Philosophical Studies, 2009, 17(1): [待补页码, 见 chunk-03.md].
 ```
 
-**保存**：将内容写入 `thesis/<章节文件名>.md`
-文件命名由用户决定或根据大纲自动命名（如 `chapter1.md`、`introduction.md`）。
+**保存**：将内容写入 `thesis/chapters/<章节文件名>.md`
+文件命名与 `thesis/outline/` 下分章文件保持一一对应（`introduction.md` / `chapter1.md` / `chapter2.md` / `chapter3.md` / `conclusion.md`）。**不要**创建 `thesis/full_thesis.md` 或类似的全文合并文件——全文合并留到写作全部完成后的最终步骤。
 
 ### Step 5.5: 暂停与报告（仅 draft 模式，batch 模式跳过此步）
 
 写完当前小节后：
-1. 将内容追加到 `thesis/<章节文件名>.md`
+1. 将内容追加到 `thesis/chapters/<章节文件名>.md`
 2. 向用户报告：
    - 已完成的小节名称和大致字数
    - 本节使用的主要文献及引用页码
@@ -145,22 +152,22 @@ allowed-tools: [Read, Write, Edit, Glob, Grep]
 ### 触发检测（在 Step 1 确定写作范围时执行）
 
 若用户请求未明确指定单个章节：
-1. 检查 `thesis/outline.md` 是否存在
-2. 检查 `thesis/writing-plan.md` 是否存在
-3. 检查 `thesis/` 目录下已有哪些章节文件（了解哪些章节已写、哪些待写）
+1. 检查 `thesis/outline/index.md` 是否存在；若存在，读取它以获取章节列表与写作状态
+2. 对每个待写章节，检查对应分章文件（`outline/<chapter>.md`）是否存在，且每个小节是否都包含完整的四个字段（核心论点 / 论证思路 / 写法 / 文献）
+3. 检查 `thesis/chapters/` 目录下已有哪些章节文件（了解哪些章节已写、哪些待写）
 
 根据检测结果：
 
-**情况 A：outline 和 writing-plan 都存在，有多个待写章节**
+**情况 A：outline 完整，有多个待写章节**
 → 主动询问用户：
-> 大纲和写作计划已就绪，有 N 章待写（列出章节名）。有两种写作方式：
+> 大纲已就绪，有 N 章待写（列出章节名）。有两种写作方式：
 > 1. **逐章写**：从某一章开始，每次写一章，写完你审阅后再继续
 > 2. **并行写作**：同时启动所有章节（batch 模式），AI 并行生成完整初稿（速度快，适合先有个全局草稿再统一修改）
 >
 > 你倾向于哪种方式？或者指定从哪一章开始？
 
-**情况 B：outline 存在但 writing-plan 不存在**
-→ 告知用户写作计划尚未生成，建议先运行 `/thesis-outline`（或询问是否现在生成）
+**情况 B：`outline/index.md` 不存在，或某章分章文件缺失，或某些小节缺少必需字段**
+→ 告知用户哪些部分信息不完整，建议先运行 `/thesis-outline`（或询问是否现在补全）
 
 **情况 C：用户明确指定了某一章**（如"写第二章"）
 → 直接进入单章写作流程，不询问，不检测
@@ -168,14 +175,13 @@ allowed-tools: [Read, Write, Edit, Glob, Grep]
 ### 并行写作执行流程
 
 用户确认并行后：
-1. **主上下文**读取 outline.md 和 writing-plan.md，确定待写章节列表
+1. **主上下文**读取 `outline/index.md`，确定待写章节列表
 2. 为每个章节生成一个**独立的 Agent 子任务**，**并行启动**（在同一条消息中发出多个 Agent 调用）
 3. 每个子 agent 的 prompt 包含：
-   - 该章节的大纲内容（从 outline.md 摘取）
-   - 该章节需要读取的 chunk 列表（从 writing-plan.md 摘取）
+   - **对应分章文件的路径**（如 `thesis/outline/chapter2.md`）——子 agent 自行读取以获取该章全部小节的四字段详情，主上下文不需要逐节摘取
    - 前一章节的最后 2 段（用于衔接，如果是第一章则省略）
    - 完整的写作规范（Step 5 的全部要求）
-   - 保存路径：`thesis/<章节文件名>.md`
+   - 保存路径：`thesis/chapters/<章节文件名>.md`
 4. **主上下文**等待所有子 agent 完成后：
    - 检查各章节之间的衔接是否自然（读取每章首尾各 2 段）
    - 检查各章脚注编号是否需要全文重编号（脚注制下每章可独立编号，也可全文连续）
@@ -185,6 +191,17 @@ allowed-tools: [Read, Write, Edit, Glob, Grep]
 - 每个子 agent 完整执行 Step 3 → Step 4 → Step 5 → Step 6
 - 子 agent 内部脚注编号从 [1] 开始（每章独立编号）
 - 绪论和结论建议在其他章节初稿完成后再写，可在询问用户时说明这一建议
+
+## 全文合并（最终步骤）
+
+当用户明确要求"合并全文"/"拼全文"/"生成 full_thesis"时，按以下顺序把 `thesis/chapters/` 下的分章文件拼接为 `thesis/full_thesis.md`：
+
+1. `introduction.md` → `chapter1.md` → `chapter2.md` → `chapter3.md` → …（按章号）→ `conclusion.md`
+2. 拼接时保留各章原样，不改内容；如脚注采用每章独立编号而需要全文连续编号，先征求用户意见
+3. 合并只在写作阶段基本完成后执行一次，日常写作/修改不要触发
+4. 合并后可选：追加参考文献节（从各章脚注聚合去重）
+
+**注意**：合并属于一次性动作，日常 `write-chapter` 流程**不**自动生成或更新 `full_thesis.md`。
 
 ## 写作质量标准
 
